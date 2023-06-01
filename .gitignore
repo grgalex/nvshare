@@ -1,0 +1,11 @@
+*~
+*.o
+*.so
+.*
+nvsharectl
+nvshare-scheduler
+nvshare*.tar.gz
+
+# Don't ignore this file
+!.gitignore
+
