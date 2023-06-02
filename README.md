@@ -4,6 +4,8 @@
 
 To achieve this, it transparently enables GPU page faults using the system RAM as swap space. To avoid thrashing, it uses `nvshare-scheduler`, which manages the GPU and gives exclusive GPU access to a single process for a given time quantum (TQ), which has a default duration of 30 seconds.
 
+This functionality solely depends on the Unified Memory API provided by the NVIDIA kernel driver. It is highly unlikely that an update to NVIDIA's kernel drivers would interfere with the viability of this project as it would require disabling Unified Memory.
+
 The de-facto way (Nvidia's device plugin) of handling GPUs on Kubernetes is to assign them to containers in a 1-1 manner. This is especially inefficient for applications that only use a GPU in bursts throughout their execution, such as long-running interactive development jobs like Jupyter notebooks.
 
 I've written a [Medium article](https://grgalex.medium.com/gpu-virtualization-in-k8s-challenges-and-state-of-the-art-a1cafbcdd12b) on the challenges of GPU sharing on Kubernetes, it's worth a read.
