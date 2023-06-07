@@ -39,6 +39,7 @@ I've written a [Medium article](https://grgalex.medium.com/gpu-virtualization-in
 - [Build For Local Use](#build_local)
 - [Build Docker Images](#build_docker)
 - [Future Improvements](#future_improves)
+- [Feedback](#feedbk)
 - [Cite This Work](#cite)
 
 <a name="features"/>
@@ -538,6 +539,12 @@ kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/v0.1/kuberne
 - Automatically detect thrashing, optimally toggle the `nvshare-scheduler` on/off.
 - Intra-node GPU migration.
 - Inter-node GPU migration.
+
+<a name="feedbk"/>
+
+## Feedback
+- Open a Github issue on this repository for any questions/bugs/suggestions.
+- If your organization is using `nvshare`, you can drop me a message/mail and I can add you to `USERS.md`.
 
 <a name="cite"/>
 
