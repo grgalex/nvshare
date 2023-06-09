@@ -168,10 +168,11 @@ View my slides on `nvshare`:
       tar -xzvf nvshare.tar.gz
       ```
 
-3. Install `libnvshare.so`:
+3. Install `libnvshare.so` and update the dynamic linker's cache:
 
       ```bash
-      sudo mv libnvshare.so /usr/local/lib/libnvshare.so
+      sudo mv libnvshare.so /usr/local/lib/libnvshare.so && \
+      sudo ldconfig /usr/local/lib
       ```
 
 4. Install `nvshare-scheduler`:
@@ -246,6 +247,14 @@ View my slides on `nvshare`:
 
       ```bash
       LD_PRELOAD=libnvshare.so <YOUR_PROGRAM> <YOUR_ARGUMENTS>
+      ```
+
+      **Option C**: Add an entry for `libnvshare.so` in `/etc/ld.so.preload`:
+
+      > In some cases, for example when using a Jupyter Notebook Server, it may be hard to set environment variables for Notebooks that it spawns after it is stated. You can opt to use the `ld.so.preload` file in those cases.
+
+      ```bash
+      sudo bash -c 'echo -ne "\n/usr/local/lib/libnvshare.so" >> /etc/ld.so.preload'
       ```
 
 3. (Optional) Use `nvsharectl` to configure `nvshare-scheduler`:
@@ -391,7 +400,7 @@ resources:
 <a name="usage_k8s_conf"/>
 
 #### (Optional) Configure an `nvshare-scheduler` instance using `nvsharectl`
-> As the scheduler is `DaemonSet`, there is one instance of `nvshare-scheduler` per node.
+> As the scheduler is a `DaemonSet`, there is one instance of `nvshare-scheduler` per node.
 
 1. Store the Pod name of the instance you want to change in a variable:
       > You can use `kubectl get pods -n nvshare-system` to find the name.
