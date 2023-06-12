@@ -1,4 +1,4 @@
-## `nvshare`: Transparent GPU sharing without memory size constraints
+## `nvshare`: Transparent GPU Sharing Without Memory Size Constraints
 
 `nvshare` is a GPU sharing mechanism that allows multiple processes (or containers running on Kubernetes) to securely run on the same physical GPU concurrently, each having the whole GPU memory available.
 
