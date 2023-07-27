@@ -19,7 +19,7 @@ metadata:
 spec:
   restartPolicy: OnFailure
   containers:
-  - image: docker.io/grgalex/nvshare:tf-matmul-1
+  - image: docker.io/grgalex/nvshare:tf-matmul-v0.1-f654c296
     env:
     - name: NVSHARE_DEBUG
       value: "1"
