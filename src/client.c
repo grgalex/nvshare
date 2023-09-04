@@ -153,6 +153,7 @@ static void read_pod_namespace(char *pod_namespace, size_t size)
 		if (!fgets(pod_namespace, size, fp)) {
 			log_warn("Couldn't read the Pod namespace from %s",
 				 k8s_pod_ns_file);
+			true_or_exit(fclose(fp) == 0);
 			goto out_ns_none;
 		}
 	}
