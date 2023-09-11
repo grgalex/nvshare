@@ -142,7 +142,8 @@ To minimize the overall completion time of a set of sequential (batch) jobs, you
 The title and first part are in Greek, but the second part is the full thesis in English. You can also find it at [`grgalex-thesis.pdf`](grgalex-thesis.pdf) in the root of this repo.
 
 #### Presentation:
-View my slides on `nvshare`:
+View the presentation on `nvshare`:
+- [Google Slides](https://docs.google.com/presentation/d/16aIY0WLZutHHMZ9LJ0kCc78A5Inm5rh0P1FqNYzzCeg)
 - [In `ODP` format](grgalex-nvshare-presentation.odp)
 - [In `PDF` format](grgalex-nvshare-presentation.pdf)
 
