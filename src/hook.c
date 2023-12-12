@@ -93,6 +93,10 @@ struct cuda_mem_allocation {
 /* Linked list that holds all memory allocations of current application. */
 struct cuda_mem_allocation *cuda_allocation_list = NULL;
 
+/* Establishes init step that will be executed only once in a cuda process */
+static pthread_once_t init_libnvshare_done = PTHREAD_ONCE_INIT;
+static pthread_once_t init_done = PTHREAD_ONCE_INIT;
+
 /* Load real CUDA {Driver API, NVML} functions and bootstrap auxiliary stuff. */
 static void bootstrap_cuda(void)
 {
@@ -510,6 +514,14 @@ void *dlsym_234(void *handle, const char *symbol)
 CUresult cuGetProcAddress(const char *symbol, void **pfn, int cudaVersion,
 	cuuint64_t flags)
 {
+	/**
+	* cuGetProcAddress() will be called before cuInit() in CUDA 
+	* Runtime API (version >=11.3), so cuGetProcAddress() should also serve as 
+	* an entrypoint.
+	* Otherwise, real_cuGetProcAddress may be a NULL pointer when it is called.
+	*/
+	true_or_exit(pthread_once(&init_libnvshare_done, initialize_libnvshare) == 0);
+	true_or_exit(pthread_once(&init_done, initialize_client) == 0);
 	CUresult result = CUDA_SUCCESS;
 
 	if (real_cuGetProcAddress == NULL) return CUDA_ERROR_NOT_INITIALIZED;
@@ -553,7 +565,7 @@ CUresult cuGetProcAddress(const char *symbol, void **pfn, int cudaVersion,
 CUresult cuMemAlloc(CUdeviceptr *dptr, size_t bytesize)
 {
 	static int got_max_mem_size = 0;
-        size_t junk;
+	size_t junk;
 	CUresult result = CUDA_SUCCESS;
 
 
@@ -659,8 +671,6 @@ CUresult cuMemGetInfo(size_t *free, size_t *total)
 CUresult cuInit(unsigned int flags)
 {
 	CUresult result = CUDA_SUCCESS;
-	static pthread_once_t init_libnvshare_done = PTHREAD_ONCE_INIT;
-	static pthread_once_t init_done = PTHREAD_ONCE_INIT;
 
 	true_or_exit(pthread_once(&init_libnvshare_done, initialize_libnvshare) == 0);
 	true_or_exit(pthread_once(&init_done, initialize_client) == 0);
