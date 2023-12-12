@@ -93,6 +93,10 @@ struct cuda_mem_allocation {
 /* Linked list that holds all memory allocations of current application. */
 struct cuda_mem_allocation *cuda_allocation_list = NULL;
 
+/* Initializaters will be executed only once per client application */
+static pthread_once_t init_libnvshare_done = PTHREAD_ONCE_INIT;
+static pthread_once_t init_done = PTHREAD_ONCE_INIT;
+
 /* Load real CUDA {Driver API, NVML} functions and bootstrap auxiliary stuff. */
 static void bootstrap_cuda(void)
 {
@@ -296,7 +300,7 @@ static void initialize_libnvshare(void)
 	char *value;
 	value = getenv(ENV_NVSHARE_DEBUG);
 	if (value != NULL)
-		__debug = 1;	
+		__debug = 1;
 	value = getenv(ENV_NVSHARE_ENABLE_SINGLE_OVERSUB);
 	if (value != NULL) {
 		enable_single_oversub = 1;
@@ -328,7 +332,7 @@ void cuda_driver_check_error(CUresult err, const char *func_name)
 }
 
 
-/* 
+/*
  * Since we're interposing dlsym() in libnvshare, we use dlvsym() to obtain the
  * address of the real dlsym function.
  *
@@ -343,18 +347,18 @@ void cuda_driver_check_error(CUresult err, const char *func_name)
  * One solution, discussed in apitrace's repo is to use dlvsym(), which also
  * takes a version string as a 3rd argument, in order to obtain the real
  * dlsym().
- * 
+ *
  * This is what user 'manisandro' suggested 8 years ago, when warning about
  * using the private __libc_dlsym():
  * https://github.com/apitrace/apitrace/issues/258
- * 
+ *
  * The maintainer of the repo didn't heed the warning back then, it came back
  * 8 years later and bit them.
- * 
+ *
  * This is also what user "derhass" suggests:
  * https://stackoverflow.com/a/18825060
  * (See section "UPDATE FOR 2021/glibc-2.34").
- * 
+ *
  * Given all the above, we obtain the real `dlsym()` as such:
  * real_dlsym=dlvsym(RTLD_NEXT, "dlsym", "GLIBC_2.2.5");
  *
@@ -494,7 +498,7 @@ void *dlsym_234(void *handle, const char *symbol)
  * initialization (when the user program calls it for the first time):
  * 1. Calls dlopen("libcuda.so.1")
  * 2. Calls dlsym() for each function in the Driver API
- * 
+ *
  * Newer CUDA Runtime API (version >=11.3) works like this:
  * 1. Calls dlopen("libcuda.so.1") and then dlsym("cuGetProcAddress")
  * 2. Calls cuGetProcAddress("cuGetProcAddress")
@@ -504,12 +508,21 @@ void *dlsym_234(void *handle, const char *symbol)
  *        cuGetProcAddress to get the Driver API function pointers.
  *
  * Interpose both, to cover all cases.
- * 
+ *
  * The logic is the same as when interposing dlsym().
  */
 CUresult cuGetProcAddress(const char *symbol, void **pfn, int cudaVersion,
 	cuuint64_t flags)
 {
+	/*
+	* cuGetProcAddress() will be called before cuInit() in CUDA
+	* Runtime API (version >=11.3), so cuGetProcAddress() should also
+	* serve as an entrypoint.
+	* Otherwise, real_cuGetProcAddress may be a NULL pointer
+	* when it is called.
+	*/
+	true_or_exit(pthread_once(&init_libnvshare_done, initialize_libnvshare) == 0);
+	true_or_exit(pthread_once(&init_done, initialize_client) == 0);
 	CUresult result = CUDA_SUCCESS;
 
 	if (real_cuGetProcAddress == NULL) return CUDA_ERROR_NOT_INITIALIZED;
@@ -553,7 +566,7 @@ CUresult cuGetProcAddress(const char *symbol, void **pfn, int cudaVersion,
 CUresult cuMemAlloc(CUdeviceptr *dptr, size_t bytesize)
 {
 	static int got_max_mem_size = 0;
-        size_t junk;
+	size_t junk;
 	CUresult result = CUDA_SUCCESS;
 
 
@@ -625,7 +638,7 @@ CUresult cuMemGetInfo(size_t *free, size_t *total)
 	 * the number of colocated applications. Each one has its own context,
 	 * which eats away some physical, non-pageable GPU memory.
 	 *
-	 * The first application that runs theoretically has (TOTAL_GPU_MEM - 
+	 * The first application that runs theoretically has (TOTAL_GPU_MEM -
 	 * CONTEXT_SIZE) memory available.
 	 *
 	 * CONTEXT_SIZE typically uses a few hundred MB and depends on the GPU
@@ -659,8 +672,6 @@ CUresult cuMemGetInfo(size_t *free, size_t *total)
 CUresult cuInit(unsigned int flags)
 {
 	CUresult result = CUDA_SUCCESS;
-	static pthread_once_t init_libnvshare_done = PTHREAD_ONCE_INIT;
-	static pthread_once_t init_done = PTHREAD_ONCE_INIT;
 
 	true_or_exit(pthread_once(&init_libnvshare_done, initialize_libnvshare) == 0);
 	true_or_exit(pthread_once(&init_done, initialize_client) == 0);
