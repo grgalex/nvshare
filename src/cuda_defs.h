@@ -67,6 +67,16 @@ typedef enum CUmemAttach_flags_enum {
 	CU_MEM_ATTACH_GLOBAL = 0x1
 } CUmemAttach_flags;
 
+/**
+ * Flags to indicate search status. For more details see ::cuGetProcAddress
+ */
+typedef enum CUdriverProcAddressQueryResult_enum
+{
+	CU_GET_PROC_ADDRESS_SUCCESS = 0,			   /**< Symbol was succesfully found */
+	CU_GET_PROC_ADDRESS_SYMBOL_NOT_FOUND = 1,	   /**< Symbol was not found in search */
+	CU_GET_PROC_ADDRESS_VERSION_NOT_SUFFICIENT = 2 /**< Symbol was found but version supplied was not sufficient */
+} CUdriverProcAddressQueryResult;
+
 typedef enum nvmlReturn_t_enum {
 	NVML_SUCCESS = 0,
 	NVML_ERROR_UNKNOWN = 999
@@ -93,6 +103,9 @@ typedef struct nvmlUtilization_st {
 /* typedefs for CUDA functions, to make hooking code cleaner */
 typedef CUresult (*cuGetProcAddress_func)(const char *symbol, void **pfn,
 	int cudaVersion, cuuint64_t flags);
+typedef CUresult (*cuGetProcAddress_v2_func)(const char *symbol, void **pfn,
+    int cudaVersion, cuuint64_t flags,
+	CUdriverProcAddressQueryResult *symbolStatus);
 typedef CUresult (*cuMemAllocManaged_func)(CUdeviceptr *dptr, size_t bytesize,
 	unsigned int flags);
 typedef CUresult (*cuMemFree_func)(CUdeviceptr dptr);
@@ -135,6 +148,9 @@ typedef nvmlReturn_t (*nvmlDeviceGetHandleByIndex_func)(unsigned int index,
 /* Hooked CUDA functions */
 extern CUresult cuGetProcAddress(const char *symbol, void **pfn,
 	int cudaVersion, cuuint64_t flags);
+extern CUresult cuGetProcAddress_v2(const char *symbol, void **pfn,
+    int cudaVersion, cuuint64_t flags,
+	CUdriverProcAddressQueryResult *symbolStatus);
 extern CUresult cuMemGetInfo(size_t *free, size_t *total);
 extern CUresult cuMemAlloc(CUdeviceptr *dptr, size_t bytesize);
 extern CUresult cuMemFree(CUdeviceptr dptr);
@@ -163,6 +179,7 @@ extern CUresult cuMemcpyDtoDAsync(CUdeviceptr dstDevice,
 
 /* Real CUDA functions */
 extern cuGetProcAddress_func real_cuGetProcAddress;
+extern cuGetProcAddress_v2_func real_cuGetProcAddress_v2;
 extern cuMemAllocManaged_func real_cuMemAllocManaged;
 extern cuMemFree_func real_cuMemFree;
 extern cuMemGetInfo_func real_cuMemGetInfo;
