@@ -60,6 +60,7 @@ cuMemcpyHtoDAsync_func real_cuMemcpyHtoDAsync = NULL;
 cuMemcpyDtoD_func real_cuMemcpyDtoD = NULL;
 cuMemcpyDtoDAsync_func real_cuMemcpyDtoDAsync = NULL;
 cuGetProcAddress_func real_cuGetProcAddress = NULL;
+cuGetProcAddress_v2_func real_cuGetProcAddress_v2 = NULL;
 cuMemAllocManaged_func real_cuMemAllocManaged = NULL;
 cuMemFree_func real_cuMemFree = NULL;
 cuMemGetInfo_func real_cuMemGetInfo = NULL;
@@ -173,6 +174,16 @@ static void bootstrap_cuda(void)
 		 * Print a debug message instead of failing immediately, since
 		 * this symbol may not be used. This may be the case for CUDA
 		 * Runtime <11.3.
+		 */
+		log_debug("%s", error);
+	real_cuGetProcAddress_v2 = (cuGetProcAddress_v2_func)
+		real_dlsym_225(cuda_handle, CUDA_SYMBOL_STRING(cuGetProcAddress_v2));
+	error = dlerror();
+	if (error != NULL)
+		/*
+		 * Print a debug message instead of failing immediately, since
+		 * this symbol may not be used. This may be the case for CUDA
+		 * Runtime <12.0.
 		 */
 		log_debug("%s", error);
 	real_cuMemGetInfo = (cuMemGetInfo_func)
@@ -430,6 +441,8 @@ void *dlsym_225(void *handle, const char *symbol)
 		return (void *)(&cuMemGetInfo);
 	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuGetProcAddress)) == 0) {
 		return (void *)(&cuGetProcAddress);
+	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuGetProcAddress_v2)) == 0) {
+		return (void *)(&cuGetProcAddress_v2);
 	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuInit)) == 0) {
 		return (void *)(&cuInit);
 	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuLaunchKernel)) == 0) {
@@ -467,6 +480,8 @@ void *dlsym_234(void *handle, const char *symbol)
 		return (void *)(&cuMemGetInfo);
 	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuGetProcAddress)) == 0) {
 		return (void *)(&cuGetProcAddress);
+	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuGetProcAddress_v2)) == 0) {
+		return (void *)(&cuGetProcAddress_v2);
 	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuInit)) == 0) {
 		return (void *)(&cuInit);
 	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuLaunchKernel)) == 0) {
@@ -535,6 +550,8 @@ CUresult cuGetProcAddress(const char *symbol, void **pfn, int cudaVersion,
 		*pfn = (void *)(&cuMemGetInfo);
 	} else if (strcmp(symbol, "cuGetProcAddress") == 0) {
 		*pfn = (void *)(&cuGetProcAddress);
+	} else if (strcmp(symbol, "cuGetProcAddress_v2") == 0) {
+		*pfn = (void *)(&cuGetProcAddress_v2);
 	} else if (strcmp(symbol, "cuInit") == 0) {
 		*pfn = (void *)(&cuInit);
 	} else if (strcmp(symbol, "cuLaunchKernel") == 0) {
@@ -557,6 +574,69 @@ CUresult cuGetProcAddress(const char *symbol, void **pfn, int cudaVersion,
 		*pfn = (void *)(&cuMemcpyDtoDAsync);
 	} else {
 		result = real_cuGetProcAddress(symbol, pfn, cudaVersion, flags);
+	}
+
+	return result;
+}
+
+
+CUresult cuGetProcAddress_v2(const char *symbol, void **pfn, int cudaVersion,
+	cuuint64_t flags, CUdriverProcAddressQueryResult *symbolStatus)
+{
+	/*
+	* cuGetProcAddress_v2() will be called before cuInit() in CUDA
+	* Runtime API (version >=12.0), so cuGetProcAddress_v2()
+	* should also serve as an entrypoint.
+	*
+	* Otherwise, real_cuGetProcAddress_v2 may be a
+	* NULL pointer when it is called.
+	*/
+	true_or_exit(pthread_once(&init_libnvshare_done, initialize_libnvshare) == 0);
+	true_or_exit(pthread_once(&init_done, initialize_client) == 0);
+	CUresult result = CUDA_SUCCESS;
+
+	if (real_cuGetProcAddress_v2 == NULL) return CUDA_ERROR_NOT_INITIALIZED;
+
+	/* This covers our custom "if" conditions.
+	 * If we end up calling the real cuGetProcAddress_v2,
+	 * it will overwrite this value.
+	 */
+	if (symbolStatus != NULL)
+		*symbolStatus = CU_GET_PROC_ADDRESS_SUCCESS;
+
+	if (strcmp(symbol, "cuMemAlloc") == 0) {
+		*pfn = (void *)(&cuMemAlloc);
+	} else if (strcmp(symbol, "cuMemFree") == 0) {
+		*pfn = (void *)(&cuMemFree);
+	} else if (strcmp(symbol, "cuMemGetInfo") == 0) {
+		*pfn = (void *)(&cuMemGetInfo);
+	} else if (strcmp(symbol, "cuGetProcAddress") == 0) {
+		*pfn = (void *)(&cuGetProcAddress);
+	} else if (strcmp(symbol, "cuGetProcAddress_v2") == 0) {
+		*pfn = (void *)(&cuGetProcAddress_v2);
+	} else if (strcmp(symbol, "cuInit") == 0) {
+		*pfn = (void *)(&cuInit);
+	} else if (strcmp(symbol, "cuLaunchKernel") == 0) {
+		*pfn = (void *)(&cuLaunchKernel);
+	} else if (strcmp(symbol, "cuMemcpy") == 0) {
+		*pfn = (void *)(&cuMemcpy);
+	} else if (strcmp(symbol, "cuMemcpyAsync") == 0) {
+		*pfn = (void *)(&cuMemcpyAsync);
+	} else if (strcmp(symbol, "cuMemcpyDtoH") == 0) {
+		*pfn = (void *)(&cuMemcpyDtoH);
+	} else if (strcmp(symbol, "cuMemcpyDtoHAsync") == 0) {
+		*pfn = (void *)(&cuMemcpyDtoHAsync);
+	} else if (strcmp(symbol, "cuMemcpyHtoD") == 0) {
+		*pfn = (void *)(&cuMemcpyHtoD);
+	} else if (strcmp(symbol, "cuMemcpyHtoDAsync") == 0) {
+		*pfn = (void *)(&cuMemcpyHtoDAsync);
+	} else if (strcmp(symbol, "cuMemcpyDtoD") == 0) {
+		*pfn = (void *)(&cuMemcpyDtoD);
+	} else if (strcmp(symbol, "cuMemcpyDtoDAsync") == 0) {
+		*pfn = (void *)(&cuMemcpyDtoDAsync);
+	} else {
+		result = real_cuGetProcAddress_v2(symbol, pfn, cudaVersion,
+				                  flags, symbolStatus);
 	}
 
 	return result;
