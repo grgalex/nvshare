@@ -80,9 +80,14 @@ int nvshare_get_scheduler_path(char *sock_path)
 
 	offset = ret; /* Start from the trailing NULL byte */
 
+	// get scheduler socket ID
+	char *NVSHARE_SOCK_ID = getenv("NVSHARE_SOCK_ID");
+	if (NVSHARE_SOCK_ID == NULL) {
+		NVSHARE_SOCK_ID = "0";
+	}
 	/* TODO: Ensure it fits in sock_path, check return value */
 	ret = snprintf(sock_path + offset, NVSHARE_SOCK_PATH_MAX - offset,
-			"%s", "scheduler.sock");
+			"%s%s%s", "scheduler",NVSHARE_SOCK_ID,".sock");
 	return 0;
 }
 

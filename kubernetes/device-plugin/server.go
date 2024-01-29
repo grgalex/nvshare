@@ -25,6 +25,7 @@ import (
 	"log"
 	"net"
 	"os"
+	  "strings"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -218,6 +219,12 @@ func (m *NvshareDevicePlugin) ListAndWatch(e *pluginapi.Empty, s pluginapi.Devic
  */
 func (m *NvshareDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.AllocateRequest) (*pluginapi.AllocateResponse, error) {
 	log.SetOutput(os.Stderr)
+ 
+	  socketId:= os.Getenv("NVSHARE_SOCK_ID")
+	  if len(socketId) == 0 {
+		  socketId = "0"
+	  }
+ 
 	responses := pluginapi.AllocateResponse{}
 	for _, req := range reqs.ContainerRequests {
 		for _, id := range req.DevicesIDs {
@@ -249,10 +256,14 @@ func (m *NvshareDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.Allo
 			ReadOnly:      true,
 		}
 		mounts = append(mounts, mount)
+  
+		  SocketHostPathNew:= strings.Split(SocketHostPath, ".sock")[0]+socketId+".sock"
+		  SocketContainerPathNew:= strings.Split(SocketContainerPath, ".sock")[0]+socketId+".sock"
+  
 		/* Mount scheduler socket */
 		mount = &pluginapi.Mount{
-			HostPath:      SocketHostPath,
-			ContainerPath: SocketContainerPath,
+			HostPath:      SocketHostPathNew,
+			ContainerPath: SocketContainerPathNew,
 			ReadOnly:      true,
 		}
 		mounts = append(mounts, mount)
