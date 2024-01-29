@@ -368,10 +368,10 @@ Deploy the `nvshare` Kubernetes components:
 4. `nvshare-scheduler` DaemonSet
 
       ```bash
-      kubectl apply -f https://raw.githubusercontent.com/grgalex/nvshare/v0.1/kubernetes/manifests/nvshare-system.yaml && \
-      kubectl apply -f https://raw.githubusercontent.com/grgalex/nvshare/v0.1/kubernetes/manifests/nvshare-system-quotas.yaml && \
-      kubectl apply -f https://raw.githubusercontent.com/grgalex/nvshare/v0.1/kubernetes/manifests/device-plugin.yaml && \
-      kubectl apply -f https://raw.githubusercontent.com/grgalex/nvshare/v0.1/kubernetes/manifests/scheduler.yaml
+      kubectl apply -f https://raw.githubusercontent.com/grgalex/nvshare/main/kubernetes/manifests/nvshare-system.yaml && \
+      kubectl apply -f https://raw.githubusercontent.com/grgalex/nvshare/main/kubernetes/manifests/nvshare-system-quotas.yaml && \
+      kubectl apply -f https://raw.githubusercontent.com/grgalex/nvshare/main/kubernetes/manifests/device-plugin.yaml && \
+      kubectl apply -f https://raw.githubusercontent.com/grgalex/nvshare/main/kubernetes/manifests/scheduler.yaml
       ```
 
 The Device Plugin runs on every GPU-enabled node in your Kubernetes cluster (currently it will fail on non-GPU nodes but that is OK) and manages a single GPU on every node. It consumes a single `nvidia.com/gpu` device and advertizes it as multiple (by default 10) `nvshare.com/gpu` devices. This means that up to 10 containers can concurrently run on the same physical GPU.
@@ -425,8 +425,8 @@ resources:
       > The default tests below use about 10 GB GPU memory each. Use these if your GPU has at least 10 GB memory. Alternatively, you can pick any in the `tests/manifests` directory. The `*-small` variants use less GPU memory. You can either clone the repo or copy the link to the raw file and pass it to `kubectl`.
 
       ```bash
-      kubectl apply -f https://raw.githubusercontent.com/grgalex/nvshare/v0.1/tests/kubernetes/manifests/nvshare-tf-pod-1.yaml && \
-      kubectl apply -f https://raw.githubusercontent.com/grgalex/nvshare/v0.1/tests/kubernetes/manifests/nvshare-tf-pod-2.yaml
+      kubectl apply -f https://raw.githubusercontent.com/grgalex/nvshare/main/tests/kubernetes/manifests/nvshare-tf-pod-1.yaml && \
+      kubectl apply -f https://raw.githubusercontent.com/grgalex/nvshare/main/tests/kubernetes/manifests/nvshare-tf-pod-2.yaml
       ```
 
 2. In a terminal window, watch the logs of the first Pod:
@@ -446,8 +446,8 @@ resources:
 5. Delete the test workloads:
 
       ```bash
-      kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/v0.1/tests/kubernetes/manifests/nvshare-tf-pod-1.yaml && \
-      kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/v0.1/tests/kubernetes/manifests/nvshare-tf-pod-2.yaml
+      kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/main/tests/kubernetes/manifests/nvshare-tf-pod-1.yaml && \
+      kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/main/tests/kubernetes/manifests/nvshare-tf-pod-2.yaml
       ```
 
 <a name="uninstall_k8s"/>
@@ -457,10 +457,10 @@ resources:
 Delete all `nvshare` components from your cluster:
 
 ```bash
-kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/v0.1/kubernetes/manifests/scheduler.yaml
-kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/v0.1/kubernetes/manifests/device-plugin.yaml && \
-kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/v0.1/kubernetes/manifests/nvshare-system-quotas.yaml && \
-kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/v0.1/kubernetes/manifests/nvshare-system.yaml && \
+kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/main/kubernetes/manifests/scheduler.yaml
+kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/main/kubernetes/manifests/device-plugin.yaml && \
+kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/main/kubernetes/manifests/nvshare-system-quotas.yaml && \
+kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/main/kubernetes/manifests/nvshare-system.yaml && \
 ```
 
 <a name="build_local"/>
