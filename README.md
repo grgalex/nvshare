@@ -160,7 +160,7 @@ View the presentation on `nvshare`:
 1. (Optional) Download the latest release tarball from the `Releases` tab or through the command-line:
 
       ```bash
-      wget https://github.com/grgalex/nvshare/releases/download/v0.1/nvshare-v0.1.tar.gz -O nvshare.tar.gz
+      wget https://github.com/grgalex/nvshare/releases/download/v0.1.1/nvshare-v0.1.1.tar.gz -O nvshare.tar.gz
       ```
 
 2. Extract the tarball:
