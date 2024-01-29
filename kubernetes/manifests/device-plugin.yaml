@@ -29,7 +29,7 @@ spec:
       priorityClassName: system-node-critical
       containers:
       - name: nvshare-lib
-        image: docker.io/grgalex/nvshare:libnvshare-v0.1-f654c296
+        image: docker.io/grgalex/nvshare:libnvshare-v0.1-8c2f5b90
         command:
         - sleep
         - infinity
@@ -58,7 +58,7 @@ spec:
           # mount for /var/run/nvshare/libnvshare.so
           mountPropagation: Bidirectional
       - name: nvshare-device-plugin
-        image: docker.io/grgalex/nvshare:nvshare-device-plugin-v0.1-f654c296
+        image: docker.io/grgalex/nvshare:nvshare-device-plugin-v0.1-8c2f5b90
         imagePullPolicy: IfNotPresent
         env:
         - name: NVSHARE_VIRTUAL_DEVICES
