@@ -29,7 +29,7 @@ spec:
       priorityClassName: system-node-critical
       containers:
       - name: nvshare-lib
-        image: docker.io/grgalex/nvshare:libnvshare-v0.1-f654c296
+        image: nvshare:libnvshare-a4301f8e
         command:
         - sleep
         - infinity
@@ -46,6 +46,11 @@ spec:
               - "/bin/sh"
               - "-c"
               - "umount -v /host-var-run-nvshare/libnvshare.so && rm /host-var-run-nvshare/libnvshare.so"
+        env:
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "1"
+        - name: NVSHARE_SOCK_ID
+          value: "1"
         securityContext:
           # Necessary for mounts to work.
           privileged: true
@@ -58,11 +63,17 @@ spec:
           # mount for /var/run/nvshare/libnvshare.so
           mountPropagation: Bidirectional
       - name: nvshare-device-plugin
-        image: docker.io/grgalex/nvshare:nvshare-device-plugin-v0.1-f654c296
+        image: nvshare:nvshare-device-plugin-a4301f8e
         imagePullPolicy: IfNotPresent
         env:
         - name: NVSHARE_VIRTUAL_DEVICES
           value: "10"
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "0"
+        - name: NVSHARE_SOCK_ID
+          value: "0"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "0"
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -70,9 +81,26 @@ spec:
         volumeMounts:
           - name: device-plugin-socket
             mountPath: /var/lib/kubelet/device-plugins
-        resources:
-          limits:
-            nvidia.com/gpu: 1
+
+      - name: nvshare-device-plugin-1
+        image: nvshare:nvshare-device-plugin-a4301f8e
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: NVSHARE_VIRTUAL_DEVICES
+          value: "10"
+        - name: NVIDIA_VISIBLE_DEVICES
+          value: "1"
+        - name: NVSHARE_SOCK_ID
+          value: "1"
+        - name: CUDA_VISIBLE_DEVICES
+          value: "1"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+          - name: device-plugin-socket
+            mountPath: /var/lib/kubelet/device-plugins
       volumes:
         - name: host-var-run-nvshare
           hostPath:

@@ -29,7 +29,7 @@ spec:
       priorityClassName: system-node-critical
       containers:
       - name: nvshare-scheduler
-        image: docker.io/grgalex/nvshare:nvshare-scheduler-v0.1-f654c296
+        image: nvshare:nvshare-scheduler-a4301f8e
         imagePullPolicy: IfNotPresent
         securityContext:
           allowPrivilegeEscalation: false
@@ -38,6 +38,32 @@ spec:
         volumeMounts:
           - name: nvshare-socket-directory
             mountPath: /var/run/nvshare
+        env:
+          - name: NVIDIA_VISIBLE_DEVICES
+            value: "0"
+          - name: NVSHARE_SOCK_ID
+            value: "0"
+          - name: CUDA_VISIBLE_DEVICES
+            value: "0"
+
+      - name: nvshare-scheduler-1
+        image: nvshare:nvshare-scheduler-a4301f8e
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        volumeMounts:
+          - name: nvshare-socket-directory
+            mountPath: /var/run/nvshare
+        env:
+          - name: NVIDIA_VISIBLE_DEVICES
+            value: "1"
+          - name: NVSHARE_SOCK_ID
+            value: "1"
+          - name: CUDA_VISIBLE_DEVICES
+            value: "1"
+
       volumes:
         - name: nvshare-socket-directory
           hostPath:

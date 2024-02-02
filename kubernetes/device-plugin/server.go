@@ -25,7 +25,7 @@ import (
 	"log"
 	"net"
 	"os"
-	  "strings"
+	"strings"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -36,6 +36,8 @@ const (
 	resourceName = "nvshare.com/gpu"
 	serverSock   = pluginapi.DevicePluginPath + "nvshare-device-plugin.sock"
 )
+
+
 
 type NvshareDevicePlugin struct {
 	devs   []*pluginapi.Device
@@ -48,9 +50,15 @@ type NvshareDevicePlugin struct {
 }
 
 func NewNvshareDevicePlugin() *NvshareDevicePlugin {
+	socketId:= os.Getenv("NVSHARE_SOCK_ID")
+	if len(socketId) == 0 {
+		socketId = "0"
+	}
+
+	serverSockNew:= strings.Split(serverSock, ".sock")[0]+socketId+".sock"
 	return &NvshareDevicePlugin{
 		devs:   getDevices(),
-		socket: serverSock,
+		socket: serverSockNew,
 
 		stop:   make(chan interface{}),
 		health: make(chan *pluginapi.Device),
@@ -76,13 +84,19 @@ func (m *NvshareDevicePlugin) cleanup() {
 func (m *NvshareDevicePlugin) Start() error {
 	m.initialize()
 
+	socketId:= os.Getenv("NVSHARE_SOCK_ID")
+	if len(socketId) == 0 {
+		socketId = "0"
+	}
+	resourceNameNew:= resourceName+socketId
+
 	err := m.Serve()
 	if err != nil {
-		log.Printf("Could not start device plugin for '%s': %s", resourceName, err)
+		log.Printf("Could not start device plugin for '%s': %s", resourceNameNew, err)
 		m.cleanup()
 		return err
 	}
-	log.Printf("Starting to serve '%s' on %s", resourceName, m.socket)
+	log.Printf("Starting to serve '%s' on %s", resourceNameNew, m.socket)
 
 	err = m.Register()
 	if err != nil {
@@ -90,17 +104,24 @@ func (m *NvshareDevicePlugin) Start() error {
 		m.Stop()
 		return err
 	}
-	log.Printf("Registered device plugin for '%s' with Kubelet", resourceName)
+	log.Printf("Registered device plugin for '%s' with Kubelet", resourceNameNew)
 
 	return nil
 }
 
 /* Stop the gRPC server and clean up the UNIX socket file */
 func (m *NvshareDevicePlugin) Stop() error {
+
+	socketId:= os.Getenv("NVSHARE_SOCK_ID")
+	if len(socketId) == 0 {
+		socketId = "0"
+	}
+	resourceNameNew:= resourceName+socketId
+
 	if (m == nil) || (m.server == nil) {
 		return nil
 	}
-	log.Printf("Stopping to serve '%s' on %s\n", resourceName, m.socket)
+	log.Printf("Stopping to serve '%s' on %s\n", resourceNameNew, m.socket)
 	m.server.Stop()
 	err := os.Remove(m.socket)
 	if (err != nil) && (!os.IsNotExist(err)) {
@@ -112,6 +133,13 @@ func (m *NvshareDevicePlugin) Stop() error {
 
 /* Starts the gRPC server which serves incoming requests from kubelet */
 func (m *NvshareDevicePlugin) Serve() error {
+
+	socketId:= os.Getenv("NVSHARE_SOCK_ID")
+	if len(socketId) == 0 {
+		socketId = "0"
+	}
+	resourceNameNew:= resourceName+socketId
+
 	os.Remove(m.socket)
 	sock, err := net.Listen("unix", m.socket)
 	if err != nil {
@@ -124,17 +152,17 @@ func (m *NvshareDevicePlugin) Serve() error {
 		lastCrashTime := time.Now()
 		restartCount := 0
 		for {
-			log.Printf("Starting gRPC server for '%s'", resourceName)
+			log.Printf("Starting gRPC server for '%s'", resourceNameNew)
 			err := m.server.Serve(sock)
 			if err == nil {
 				break
 			}
 
 			log.Printf("GRPC server for '%s' crashed with error: %v",
-				resourceName, err)
+			resourceNameNew, err)
 
 			if restartCount > 5 {
-				log.Fatalf("GRPC server for '%s' has repeatedly crashed recently. Quitting", resourceName)
+				log.Fatalf("GRPC server for '%s' has repeatedly crashed recently. Quitting", resourceNameNew)
 			}
 			timeSinceLastCrash := time.Since(lastCrashTime).Seconds()
 			lastCrashTime = time.Now()
@@ -157,6 +185,14 @@ func (m *NvshareDevicePlugin) Serve() error {
 
 /* Registers the device plugin for resourceName with kubelet */
 func (m *NvshareDevicePlugin) Register() error {
+
+	socketId:= os.Getenv("NVSHARE_SOCK_ID")
+	if len(socketId) == 0 {
+		socketId = "0"
+	}
+	resourceNameNew := resourceName+socketId
+
+
 	conn, err := m.dial(pluginapi.KubeletSocket, 5*time.Second)
 	if err != nil {
 		return err
@@ -167,7 +203,7 @@ func (m *NvshareDevicePlugin) Register() error {
 	reqt := &pluginapi.RegisterRequest{
 		Version:      pluginapi.Version,
 		Endpoint:     path.Base(m.socket),
-		ResourceName: resourceName,
+		ResourceName: resourceNameNew,
 		Options: &pluginapi.DevicePluginOptions{
 			GetPreferredAllocationAvailable: false,
 		},
@@ -224,13 +260,15 @@ func (m *NvshareDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.Allo
 	  if len(socketId) == 0 {
 		  socketId = "0"
 	  }
+
+	  resourceNameNew := resourceName+socketId
  
 	responses := pluginapi.AllocateResponse{}
 	for _, req := range reqs.ContainerRequests {
 		for _, id := range req.DevicesIDs {
 			log.Printf("Received Allocate request for %s", id)
 			if !m.deviceExists(id) {
-				return nil, fmt.Errorf("invalid allocation request for '%s' - unknown device: %s", resourceName, id)
+				return nil, fmt.Errorf("invalid allocation request for '%s' - unknown device: %s", resourceNameNew, id)
 			}
 		}
 
