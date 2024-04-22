@@ -562,14 +562,11 @@ kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/main/kuberne
 
 If you found this work useful, you can cite it in the following way:
 
-```bibtex
-@mathesis{Alexopoulos_2022,
-  title={Dynamic memory management for the efficient utilization of graphics processing units in interactive machine learning development},
-  url={https://dspace.lib.ntua.gr/xmlui/handle/123456789/54290},
-  doi={10.26240/HEAL.NTUA.21988},
-  publisher={National Technological University of Athens},
-  author={Alexopoulos, Georgios},
-  year={2022}
-}
+```
+Georgios Alexopoulos and Dimitris Mitropoulos. 2024. nvshare: Practical
+GPU Sharing without Memory Size Constraints. In 2024 IEEE/ACM 46th
+International Conference on Software Engineering: Companion Proceedings
+(ICSE-Companion ’24), April 14–20, 2024,Lisbon, Portugal. ACM, New York,
+NY, USA, 5 pages. https://doi.org/10.1145/3639478.3640034
 ```
 
