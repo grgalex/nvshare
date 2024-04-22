@@ -2,6 +2,8 @@
 
 `nvshare` is a GPU sharing mechanism that allows multiple processes (or containers running on Kubernetes) to securely run on the same physical GPU concurrently, each having the whole GPU memory available.
 
+You can watch a quick explanation plus a **demonstration** at https://www.youtube.com/watch?v=9n-5sc5AICY.
+
 To achieve this, it transparently enables GPU page faults using the system RAM as swap space. To avoid thrashing, it uses `nvshare-scheduler`, which manages the GPU and gives exclusive GPU access to a single process for a given time quantum (TQ), which has a default duration of 30 seconds.
 
 This functionality solely depends on the Unified Memory API provided by the NVIDIA kernel driver. It is highly unlikely that an update to NVIDIA's kernel drivers would interfere with the viability of this project as it would require disabling Unified Memory.
