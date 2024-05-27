@@ -17,7 +17,7 @@ I've written a [Medium article](https://grgalex.medium.com/gpu-virtualization-in
 - Run 2+ processes/containers with infrequent GPU bursts on the same GPU (e.g., interactive apps, ML inference)
 - Run 2+ non-interactive workloads (e.g., ML training) on the same GPU to minimize their total completion time and reduce queueing
 
-## Table of Contents
+## Documentation
 - [Features](#features)
 - [Key Idea](#key_idea)
 - [Supported GPUs](#supported_gpus)
@@ -40,7 +40,8 @@ I've written a [Medium article](https://grgalex.medium.com/gpu-virtualization-in
   - [Uninstall (Kubernetes)](#uninstall_k8s)
 - [Build For Local Use](#build_local)
 - [Build Docker Images](#build_docker)
-- [Future Improvements](#future_improves)
+- [Limitations](#limitations)
+- [Enterprise Edition](#enterprise)
 - [Feedback](#feedbk)
 - [Cite This Work](#cite)
 
@@ -544,19 +545,27 @@ kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/main/kuberne
       make push
       ```
 
-<a name="future_improves"/>
+<a name="limitations"/>
 
-## Future Improvements
-- `nvshare` currently supports only one GPU per node, as the `nvshare-scheduler` is hardcoded to use the Nvidia GPU with ID 0. Support multiple GPUs per node/machine.
-- Automatically detect thrashing, optimally toggle the `nvshare-scheduler` on/off.
-- Intra-node GPU migration.
-- Inter-node GPU migration.
+## Limitations
+- `nvshare` open-source only supports one GPU per node.
+
+<a name="enterprise"/>
+
+## Enterprise Edition
+- Multiple GPU per-node support (bare-metal, Kubernetes)
+- Expert technical assistance
+- Under-development features include:
+    - Automated thrashing detection (maximizing GPU utilization)
+    - Intra-node GPU migration
+    - Inter-node GPU migration
+
+For inquiries, contact info@nvshare.com.
 
 <a name="feedbk"/>
 
 ## Feedback
 - Open a Github issue on this repository for any questions/bugs/suggestions.
-- If your organization is using `nvshare`, you can drop me a message/mail and I can add you to `USERS.md`.
 
 <a name="cite"/>
 
