@@ -74,7 +74,7 @@ int nvshare_get_scheduler_path(char *sock_path)
 {
 	int offset;
 	size_t ret;
-	
+
 	/* TODO: Ensure it fits in sock_path, check return value */
 	ret = strlcpy(sock_path, NVSHARE_SOCK_DIR, NVSHARE_SOCK_PATH_MAX);
 

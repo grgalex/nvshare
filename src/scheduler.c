@@ -565,7 +565,7 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 
 	/* Set up fd for epoll */
 	true_or_exit((epoll_fd = epoll_create(1)) >= 0);
-	
+
 	/* Start listening */
 	true_or_exit(nvshare_bind_and_listen(&lsock, nvscheduler_socket_path) == 0);
 
@@ -588,7 +588,7 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 	if (chmod(nvscheduler_socket_path, S_IRWXU | S_IWGRP| S_IWOTH) != 0)
 		log_fatal("chmod() failed for %s", nvscheduler_socket_path);
 
-	out_msg.id = 7331; 
+	out_msg.id = 7331;
 
 	log_info("nvshare-scheduler listening on %s",
 		 nvscheduler_socket_path);
@@ -640,7 +640,7 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 
 			} else { /* Some event other than new connection */
 				client = (struct nvshare_client *)events[i].data.ptr;
-				
+
 				/* Check for incoming messages */
 				if (events[i].events & EPOLLIN) {
 					ret = receive_message(client, &in_msg);

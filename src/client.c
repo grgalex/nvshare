@@ -345,7 +345,7 @@ void *client_fn(void *arg __attribute__((unused)))
 				 (int)in_msg.type);
 			break;
 		}
-		
+
 		/* Done with this messsage */
 		true_or_exit(pthread_mutex_unlock(&global_mutex) == 0);
 
@@ -442,7 +442,7 @@ wait_remainder:
 						continue;
 					}
 				}
-			} else { /* FALLBACK method in case NVML fails */ 
+			} else { /* FALLBACK method in case NVML fails */
 				/*
 				 * The idea is the following:
 				 *

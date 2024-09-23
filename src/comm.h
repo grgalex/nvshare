@@ -33,7 +33,7 @@
 /* Maximum length of nvshare socket path */
 #define NVSHARE_SOCK_PATH_MAX UNIX_PATH_MAX
 
-/* 
+/*
  * A message's data segment must comfortably hold 16 HEX characters plus a
  * NULL terminator for the client ID which the scheduler sends as a response
  * to a REGISTER message.
