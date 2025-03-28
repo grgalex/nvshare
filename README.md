@@ -57,7 +57,7 @@ I've written a [Medium article](https://grgalex.medium.com/gpu-virtualization-in
    - Apps release GPU if done with work before TQ elapses
 - Device plugin for Kubernetes
 
-<a name="key_ideas"/>
+<a name="key_idea"/>
 
 ## Key Idea
 
@@ -138,6 +138,9 @@ To minimize the overall completion time of a set of sequential (batch) jobs, you
 <a name="further_reading"/>
 
 ## Further Reading
+
+Our ICSE 2024 paper is available at https://grgalex.gr/assets/pdf/nvshare_icse24.pdf.
+
 `nvshare` is based on my diploma thesis titled "Dynamic memory management for the efficient utilization of graphics processing units in interactive machine learning development", published in July 2021 and available at http://dx.doi.org/10.26240/heal.ntua.21988.
 
 #### Thesis:
