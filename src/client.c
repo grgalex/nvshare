@@ -214,7 +214,6 @@ void *client_fn(void *arg __attribute__((unused)))
 {
 	struct message in_msg;
 	struct message out_msg;
-	CUresult cu_err = CUDA_SUCCESS;
 
 	memset(&out_msg, 0, sizeof(out_msg));
 	out_msg.id = 1234;
@@ -226,11 +225,6 @@ void *client_fn(void *arg __attribute__((unused)))
 	sigset_t signal_set;
 	true_or_exit(sigfillset(&signal_set) == 0);
 	true_or_exit(pthread_sigmask(SIG_SETMASK, &signal_set, NULL) == 0);
-
-	cu_err = real_cuInit(0);
-	cuda_driver_check_error(cu_err, CUDA_SYMBOL_STRING(cuInit));
-	if (cu_err != CUDA_SUCCESS)
-		log_fatal("cuInit failed when initializing client");
 
 	if (getenv("KUBERNETES_SERVICE_HOST")) {
 		read_pod_namespace(out_msg.pod_namespace, sizeof(out_msg.pod_namespace));
