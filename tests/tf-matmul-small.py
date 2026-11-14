@@ -15,20 +15,16 @@
 # Heavily inspired by: https://stackoverflow.com/a/41810634
 
 import os
-import sys
 import tensorflow as tf
 import time
 from tensorflow.python.framework.ops import disable_eager_execution
 
-import subprocess
-import sys
 
 try:
     from tqdm import tqdm
 except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", 'tqdm'])
-finally:
-    from tqdm import tqdm
+    def tqdm(iterable):
+        return iterable
 
 disable_eager_execution()
 

@@ -13,16 +13,13 @@
 # limitations under the License.
 
 import torch
-import subprocess
-import sys
 import time
 
 try:
     from tqdm import tqdm
 except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", 'tqdm'])
-finally:
-    from tqdm import tqdm
+    def tqdm(iterable):
+        return iterable
 
 start_time = time.time()
 n = 14000
