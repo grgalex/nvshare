@@ -27,6 +27,12 @@ DEVICE_PLUGIN_TAG := nvshare-device-plugin-$(NVSHARE_TAG)
 
 all: build push
 
+# make test [TESTS="name ..."] [V=1]
+test:
+	@V=$(V) tests/integration/run.sh $(TESTS)
+
+check: test
+
 build: build-libnvshare build-scheduler build-device-plugin
 
 build-libnvshare:
@@ -49,7 +55,7 @@ push-scheduler:
 push-device-plugin:
 	docker push "$(IMAGE):$(DEVICE_PLUGIN_TAG)"
 
-.PHONY: all
+.PHONY: all test check
 .PHONY: build build-libnvshare build-scheduler build-device-plugin
 .PHONY: push push-libnvshare push-scheduler push-device-plugin
 
