@@ -139,7 +139,8 @@ int main(int argc, const char *argv[])
 	}
 
 	if (nvshare_get_scheduler_path(nvscheduler_socket_path) != 0)
-		log_fatal("Failed to obtain nvshare-scheduler socket path.");
+		log_fatal("Socket path under %s is too long",
+			  nvshare_get_sock_dir());
 
 	if (config.cmdline_anti_thrash != NULL) {
 		if (strcmp(config.cmdline_anti_thrash, "on") == 0)

@@ -506,6 +506,7 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 	struct nvshare_client *client;
 	int ret, err, lsock, rsock, num_fds;
 	char *debug_val;
+	const char *sock_dir;
 	struct message in_msg = {0};
 	struct epoll_event event, events[EPOLL_MAX_EVENTS];
 
@@ -533,18 +534,19 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 	 *    2. Can read meta-information (permissions, timestamps, size)
 	 *       about a file if the file name is known
 	 */
-	err = mkdir(NVSHARE_SOCK_DIR, S_IRWXU | S_IXGRP | S_IXOTH);
+	sock_dir = nvshare_get_sock_dir();
+	err = mkdir(sock_dir, S_IRWXU | S_IXGRP | S_IXOTH);
 	if (err != 0 && errno != EEXIST)
 		log_fatal("Could not create scheduler socket directory %s",
-			  NVSHARE_SOCK_DIR);
+			  sock_dir);
 
 	/*
-	 * Unconditionally call chmod(), as it is not affected by umask, to
-	 * ensure that the directory has the correct (aforementioned) 711
-	 * permissions.
+	 * chmod() is not affected by umask. Don't touch an existing directory
+	 * that the user chose, e.g. NVSHARE_SOCK_DIR=/tmp.
 	 */
-	if (chmod(NVSHARE_SOCK_DIR, S_IRWXU | S_IXGRP | S_IXOTH) != 0)
-		log_fatal("chmod() failed for %s", NVSHARE_SOCK_DIR);
+	if ((err == 0 || strcmp(sock_dir, NVSHARE_SOCK_DIR) == 0) &&
+	    chmod(sock_dir, S_IRWXU | S_IXGRP | S_IXOTH) != 0)
+		log_fatal("chmod() failed for %s", sock_dir);
 
 	/* TODO: Enable setting this dynamically through an envvar/conffile */
 	scheduler_on = 1;
@@ -558,7 +560,7 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 	true_or_exit(pthread_cond_init(&timer_cv, NULL) == 0);
 
 	if (nvshare_get_scheduler_path(nvscheduler_socket_path) != 0)
-		log_fatal("nvshare_get_scheduler_path() failed!");
+		log_fatal("Socket path under %s is too long", sock_dir);
 
 	/* Spawn the timer thread */
 	true_or_exit(pthread_create(&timer_tid, NULL, timer_thr_fn, NULL) == 0);

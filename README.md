@@ -183,7 +183,7 @@ View the presentation on `nvshare`:
 
 4. Install `nvshare-scheduler`:
 
-      > `nvshare` uses UNIX sockets for communication and stores them under `/var/run/nvshare`, so it must run as **root**.
+      > `nvshare` uses UNIX sockets for communication and by default stores them under `/var/run/nvshare`, so with the default setup it must run as **root**.
 
       ```bash
       sudo mv nvshare-scheduler /usr/local/sbin/nvshare-scheduler
@@ -207,12 +207,14 @@ View the presentation on `nvshare`:
 
 1. Start the `nvshare-scheduler`:
 
-      > It must run as `root`, so we must use `sudo`.
+      > With the default setup it must run as `root`, so we must use `sudo`.
 
       The `nvshare-scheduler` executable will:
       - Create the `/var/run/nvshare` directory
       - Create the `/var/run/nvshare/scheduler.sock` UNIX socket
       - Listen for requests from `nvshare` clients.
+
+      > To use a different directory, set `NVSHARE_SOCK_DIR` for the scheduler, the applications, and `nvsharectl` alike.
 
       **Option A**: Start `nvshare-scheduler` with **normal logging**:
 

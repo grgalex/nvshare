@@ -42,11 +42,13 @@
 #define POD_NAME_LEN_MAX      254
 #define POD_NAMESPACE_LEN_MAX 254
 
-#define NVSHARE_SOCK_DIR          "/var/run/nvshare/"
+#define NVSHARE_SOCK_DIR          "/var/run/nvshare"
+#define ENV_NVSHARE_SOCK_DIR      "NVSHARE_SOCK_DIR"
 
 
 extern const char *message_type_string[];
 extern uint64_t nvshare_generate_id(void);
+extern const char *nvshare_get_sock_dir(void);
 extern int nvshare_get_scheduler_path(char *sock_path);
 extern int nvshare_bind_and_listen(int *lsock, const char *sock_path);
 extern int nvshare_connect(int *rsock, const char *rpath);
