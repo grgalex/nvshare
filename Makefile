@@ -33,6 +33,11 @@ test:
 
 check: test
 
+# make test-gpu [WORKLOAD=tests/<workload>.py] [COPIES=n]
+WORKLOAD ?= tests/pytorch-add-small.py
+test-gpu:
+	@tests/gpu/run.sh $(WORKLOAD) $(COPIES)
+
 build: build-libnvshare build-scheduler build-device-plugin
 
 build-libnvshare:
@@ -55,7 +60,7 @@ push-scheduler:
 push-device-plugin:
 	docker push "$(IMAGE):$(DEVICE_PLUGIN_TAG)"
 
-.PHONY: all test check
+.PHONY: all test check test-gpu
 .PHONY: build build-libnvshare build-scheduler build-device-plugin
 .PHONY: push push-libnvshare push-scheduler push-device-plugin
 
