@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Build on an old glibc, so that libnvshare loads in older app images.
 FROM ubuntu:18.04 as build
 COPY ./src/ /src
 WORKDIR /src
@@ -22,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN make libnvshare.so
 
 
-FROM ubuntu:18.04
+FROM ubuntu:24.04
 COPY --from=build /src/libnvshare.so /libnvshare.so
 ENTRYPOINT ["echo", "This container is not meant to be executed"]
 
