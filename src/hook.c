@@ -84,6 +84,9 @@ pthread_mutex_t kcount_mutex;
 int enable_single_oversub = 0;
 int nvml_ok = 1;
 
+static void *libcuda_handle = NULL;
+static void *libcuda_base = NULL;
+
 /* Representation of a CUDA memory allocation */
 struct cuda_mem_allocation {
 	CUdeviceptr ptr;
@@ -266,6 +269,12 @@ static void bootstrap_cuda(void)
 	error = dlerror();
 	if (error != NULL)
 		log_fatal("%s", error);
+
+	Dl_info cuda_info;
+	if (dladdr((void *)real_cuInit, &cuda_info) == 0)
+		log_fatal("dladdr() failed for the real cuInit");
+	libcuda_handle = cuda_handle;
+	libcuda_base = cuda_info.dli_fbase;
 }
 
 
@@ -429,10 +438,10 @@ static void *real_dlsym_234(void *handle, const char *symbol)
  * In all other cases, call the real dlsym() from glibc and pass on the
  * requested symbol string.
  */
-void *dlsym_225(void *handle, const char *symbol)
+static void *get_hook(const char *symbol)
 {
 	if (strncmp(symbol, "cu", 2) != 0) {
-		return (real_dlsym_225(handle, symbol));
+		return NULL;
 	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuMemAlloc)) == 0) {
 		return (void *)(&cuMemAlloc);
 	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuMemFree)) == 0) {
@@ -465,46 +474,42 @@ void *dlsym_225(void *handle, const char *symbol)
 		return (void *)(&cuMemcpyDtoDAsync);
 	}
 
-	return (real_dlsym_225(handle, symbol));
+	return NULL;
+}
+
+/* Some drivers dlsym() their own functions inside cuInit() (#27). */
+static int called_from_libcuda(const void *caller)
+{
+	Dl_info info;
+
+	if (libcuda_base == NULL)
+		return 0;
+	if (dladdr(caller, &info) == 0)
+		return 0;
+	return info.dli_fbase == libcuda_base;
+}
+
+/* Use our libcuda handle: RTLD_DEFAULT would find our preloaded wrapper. */
+void *dlsym_225(void *handle, const char *symbol)
+{
+	void *hook = get_hook(symbol);
+
+	if (hook == NULL)
+		return real_dlsym_225(handle, symbol);
+	if (called_from_libcuda(__builtin_return_address(0)))
+		return real_dlsym_225(libcuda_handle, symbol);
+	return hook;
 }
 
 void *dlsym_234(void *handle, const char *symbol)
 {
-	if (strncmp(symbol, "cu", 2) != 0) {
-		return (real_dlsym_234(handle, symbol));
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuMemAlloc)) == 0) {
-		return (void *)(&cuMemAlloc);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuMemFree)) == 0) {
-		return (void *)(&cuMemFree);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuMemGetInfo)) == 0) {
-		return (void *)(&cuMemGetInfo);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuGetProcAddress)) == 0) {
-		return (void *)(&cuGetProcAddress);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuGetProcAddress_v2)) == 0) {
-		return (void *)(&cuGetProcAddress_v2);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuInit)) == 0) {
-		return (void *)(&cuInit);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuLaunchKernel)) == 0) {
-		return (void *)(&cuLaunchKernel);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuMemcpy)) == 0) {
-		return (void *)(&cuMemcpy);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuMemcpyAsync)) == 0) {
-		return (void *)(&cuMemcpyAsync);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuMemcpyDtoH)) == 0) {
-		return (void *)(&cuMemcpyDtoH);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuMemcpyDtoHAsync)) == 0) {
-		return (void *)(&cuMemcpyDtoHAsync);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuMemcpyHtoD)) == 0) {
-		return (void *)(&cuMemcpyHtoD);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuMemcpyHtoDAsync)) == 0) {
-		return (void *)(&cuMemcpyHtoDAsync);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuMemcpyDtoD)) == 0) {
-		return (void *)(&cuMemcpyDtoD);
-	} else if (strcmp(symbol, CUDA_SYMBOL_STRING(cuMemcpyDtoDAsync)) == 0) {
-		return (void *)(&cuMemcpyDtoDAsync);
-	}
+	void *hook = get_hook(symbol);
 
-	return (real_dlsym_234(handle, symbol));
+	if (hook == NULL)
+		return real_dlsym_234(handle, symbol);
+	if (called_from_libcuda(__builtin_return_address(0)))
+		return real_dlsym_234(libcuda_handle, symbol);
+	return hook;
 }
 
 
