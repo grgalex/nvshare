@@ -19,9 +19,11 @@
 
 #include <dirent.h>
 #include <pthread.h>
+#include <signal.h>
 #include <inttypes.h>
 #include <sys/stat.h>
 #include <sys/epoll.h>
+#include <sys/signalfd.h>
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -504,7 +506,9 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 {
 	pthread_t timer_tid;
 	struct nvshare_client *client;
-	int ret, err, lsock, rsock, num_fds;
+	int ret, err, lsock, rsock, num_fds, signal_fd;
+	sigset_t exit_signals;
+	struct signalfd_siginfo siginfo;
 	char *debug_val;
 	const char *sock_dir;
 	struct message in_msg = {0};
@@ -561,6 +565,13 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 	true_or_exit(pthread_mutex_init(&global_mutex, NULL) == 0);
 	true_or_exit(pthread_cond_init(&timer_cv, NULL) == 0);
 
+	/* Block before spawning threads; the event loop reads them via signal_fd. */
+	true_or_exit(sigemptyset(&exit_signals) == 0);
+	true_or_exit(sigaddset(&exit_signals, SIGTERM) == 0);
+	true_or_exit(sigaddset(&exit_signals, SIGINT) == 0);
+	true_or_exit(pthread_sigmask(SIG_BLOCK, &exit_signals, NULL) == 0);
+	true_or_exit((signal_fd = signalfd(-1, &exit_signals, SFD_CLOEXEC)) >= 0);
+
 	/* Spawn the timer thread */
 	true_or_exit(pthread_create(&timer_tid, NULL, timer_thr_fn, NULL) == 0);
 
@@ -575,6 +586,10 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 	event.data.fd = lsock;
 	event.events = EPOLLIN;
 	true_or_exit(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, lsock, &event) == 0);
+
+	event.data.fd = signal_fd;
+	event.events = EPOLLIN;
+	true_or_exit(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, signal_fd, &event) == 0);
 
 	/*
 	 * According to man unix(7):
@@ -607,7 +622,15 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 		true_or_exit(pthread_mutex_lock(&global_mutex) == 0);
 
 		for (int i = 0; i < num_fds; i++) {
-			if (events[i].data.fd == lsock) {
+			if (events[i].data.fd == signal_fd) {
+				true_or_exit(read(signal_fd, &siginfo, sizeof(siginfo)) == sizeof(siginfo));
+				log_info("Received %s, exiting",
+					 strsignal((int)siginfo.ssi_signo));
+				if (unlink(nvscheduler_socket_path) != 0)
+					log_warn("Failed to remove %s: %s",
+						 nvscheduler_socket_path, strerror(errno));
+				exit(0);
+			} else if (events[i].data.fd == lsock) {
 				/* New connection. */
 				ret = nvshare_accept(events[i].data.fd, &rsock);
 				if (ret == 0) { /* OK */
