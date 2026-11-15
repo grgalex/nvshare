@@ -18,15 +18,15 @@
 
 # You can change IMAGE to point to your own Repository.
 IMAGE := nvshare
-NVSHARE_COMMIT := $(shell git rev-parse HEAD)
-NVSHARE_TAG := $(shell echo $(NVSHARE_COMMIT) | cut -c 1-8)
+NVSHARE_COMMIT = $(shell git rev-parse HEAD)
+NVSHARE_TAG = $(shell echo $(NVSHARE_COMMIT) | cut -c 1-8)
 
-TF_IMAGE_TAG := tf-matmul-$(NVSHARE_TAG)
+TF_IMAGE_TAG = tf-matmul-$(NVSHARE_TAG)
 # Variant with smaller matrix sizes.
-TF_SMALL_IMAGE_TAG := tf-matmul-small-$(NVSHARE_TAG)
-PYTORCH_IMAGE_TAG := pytorch-add-$(NVSHARE_TAG)
+TF_SMALL_IMAGE_TAG = tf-matmul-small-$(NVSHARE_TAG)
+PYTORCH_IMAGE_TAG = pytorch-add-$(NVSHARE_TAG)
 # Variant with smaller matrix sizes.
-PYTORCH_SMALL_IMAGE_TAG := pytorch-add-small-$(NVSHARE_TAG)
+PYTORCH_SMALL_IMAGE_TAG = pytorch-add-small-$(NVSHARE_TAG)
 
 DOCKERFILE_DIR := ./dockerfiles
 

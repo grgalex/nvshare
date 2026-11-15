@@ -18,12 +18,12 @@
 
 # You can change IMAGE to point to your own Repository.
 IMAGE := nvshare
-NVSHARE_COMMIT := $(shell git rev-parse HEAD)
-NVSHARE_TAG := $(shell echo $(NVSHARE_COMMIT) | cut -c 1-8)
+NVSHARE_COMMIT = $(shell git rev-parse HEAD)
+NVSHARE_TAG = $(shell echo $(NVSHARE_COMMIT) | cut -c 1-8)
 
-LIBNVSHARE_TAG := libnvshare-$(NVSHARE_TAG)
-SCHEDULER_TAG := nvshare-scheduler-$(NVSHARE_TAG)
-DEVICE_PLUGIN_TAG := nvshare-device-plugin-$(NVSHARE_TAG)
+LIBNVSHARE_TAG = libnvshare-$(NVSHARE_TAG)
+SCHEDULER_TAG = nvshare-scheduler-$(NVSHARE_TAG)
+DEVICE_PLUGIN_TAG = nvshare-device-plugin-$(NVSHARE_TAG)
 
 all: build push
 

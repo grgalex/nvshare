@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-NVSHARE_COMMIT := $(shell git rev-parse HEAD)
-NVSHARE_TAG := $(shell echo $(NVSHARE_COMMIT) | cut -c 1-8)
+NVSHARE_COMMIT = $(shell git rev-parse HEAD)
+NVSHARE_TAG = $(shell echo $(NVSHARE_COMMIT) | cut -c 1-8)
 CC = gcc
 GENERAL_LDFLAGS = -Wl,-z,defs -Wl,-z,relro -Wl,-z,now -Wl,--no-undefined
 LIBNVSHARE_LDFLAGS = -shared -Wl,-soname=libnvshare.so -Wl,--version-script=libnvshare-symbols.ld -Wl,--exclude-libs,ALL
