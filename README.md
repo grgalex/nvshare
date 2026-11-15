@@ -31,6 +31,8 @@ I've written a [Medium article](https://grgalex.medium.com/gpu-virtualization-in
   - [Installation (Local)](#installation_local)
   - [Usage (Local)](#usage_local)
   - [Test (Local)](#test_local)
+    - [Run the Test Suites](#test_local_suites)
+    - [Test Interactively](#test_local_interactive)
 - [Deploy on Kubernetes](#deploy_k8s)
   - [Installation (Kubernetes)](#installation_k8s)
   - [Usage (Kubernetes)](#usage_k8s)
@@ -284,6 +286,30 @@ View the presentation on `nvshare`:
 <a name="test_local"/>
 
 ### Test (Local)
+
+<a name="test_local_suites"/>
+
+#### Run the Test Suites
+
+1. Run the integration tests from the root of the repository:
+
+      > They only need `gcc` and `make`, no GPU or root.
+
+      ```bash
+      make test
+      ```
+
+2. (Optional) Run the GPU tests, which run two co-located copies of a workload from `tests/` under `nvshare`:
+
+      > They need a GPU and the workload's framework. The default workload uses PyTorch.
+
+      ```bash
+      make test-gpu
+      ```
+
+<a name="test_local_interactive"/>
+
+#### Test Interactively
 
 > If you don't want to use `docker`, you can run the tests manually by cloning the repo, going to the `tests/` directory and running the Python programs by hand, using `LD_PRELOAD=libnvshare.so`.
 > The default tests below use about 10 GB GPU memory each. Use these if your GPU has at least 10 GB memory.
