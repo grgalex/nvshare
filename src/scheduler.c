@@ -535,6 +535,8 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 	 *       about a file if the file name is known
 	 */
 	sock_dir = nvshare_get_sock_dir();
+	if (nvshare_get_scheduler_path(nvscheduler_socket_path) != 0)
+		log_fatal("Socket path under %s is too long", sock_dir);
 	err = mkdir(sock_dir, S_IRWXU | S_IXGRP | S_IXOTH);
 	if (err != 0 && errno != EEXIST)
 		log_fatal("Could not create scheduler socket directory %s",
@@ -558,9 +560,6 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 
 	true_or_exit(pthread_mutex_init(&global_mutex, NULL) == 0);
 	true_or_exit(pthread_cond_init(&timer_cv, NULL) == 0);
-
-	if (nvshare_get_scheduler_path(nvscheduler_socket_path) != 0)
-		log_fatal("Socket path under %s is too long", sock_dir);
 
 	/* Spawn the timer thread */
 	true_or_exit(pthread_create(&timer_tid, NULL, timer_thr_fn, NULL) == 0);
