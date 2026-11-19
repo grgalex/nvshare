@@ -14,10 +14,11 @@
  * limitations under the License.
  *
  *
- * usage: app [HOLD [KERNELS]]
+ * usage: app [HOLD [KERNELS [COPY]]]
  *
  * Launches KERNELS (default 300) kernels into a stream capture, then ends it.
- * Keeps the capture open for HOLD (default 0) seconds first.
+ * Keeps the capture open for HOLD (default 0) seconds first. With COPY=1,
+ * also captures a memory copy.
  */
 
 #include <stdio.h>
@@ -30,11 +31,14 @@ int cuLaunchKernel(void *f, unsigned int gx, unsigned int gy, unsigned int gz,
 		   unsigned int shm, void *stream, void **params, void **extra);
 int cuStreamBeginCapture_v2(void *stream, int mode);
 int cuStreamEndCapture(void *stream, void **graph);
+int cuMemcpyDtoDAsync_v2(unsigned long long dst, unsigned long long src,
+			 size_t bytes, void *stream);
 
 int main(int argc, char *argv[])
 {
 	int hold = argc > 1 ? atoi(argv[1]) : 0;
 	int kernels = argc > 2 ? atoi(argv[2]) : 300;
+	int copy = argc > 3 ? atoi(argv[3]) : 0;
 	void *stream = (void *)0x100;
 	void *graph = NULL;
 	int ret;
@@ -49,6 +53,8 @@ int main(int argc, char *argv[])
 	sleep(hold);
 	for (int i = 0; i < kernels; i++)
 		cuLaunchKernel(NULL, 1, 1, 1, 1, 1, 1, 0, stream, NULL, NULL);
+	if (copy && cuMemcpyDtoDAsync_v2(0x1000, 0x2000, 64, stream) != 0)
+		return 1;
 	ret = cuStreamEndCapture(stream, &graph);
 
 	printf("cuStreamEndCapture returned %d\n", ret);

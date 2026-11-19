@@ -24,6 +24,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 
 build_nvshare
 build_fake_libcuda
+build_fake_nvml
 gcc -O2 -Wall -Wextra -o "$TEST_TMP/app" "$HERE/app.c" -L"$TEST_TMP" -lcuda
 start_scheduler
 
@@ -52,5 +53,19 @@ sed 's/^/#   /' "$TEST_TMP/app-holder.log" "$TEST_TMP/app-waiter.log"
 check "capture survives a lock handover (status $rc_a)" [ "$rc_a" -eq 0 ]
 check "the waiting client ran too (status $rc_b)" [ "$rc_b" -eq 0 ]
 check "the scheduler asked for the lock back" grep -q "Sent DROP_LOCK" "$SCHEDULER_LOG"
+
+# A capture longer than the early-release interval, while another client
+# waits for the lock, then a gated call inside the capture.
+rc_a=0; rc_b=0
+run_app idle-holder 8 1 1 &
+holder=$!
+sleep 1
+run_app waiter2 0 &
+waiter=$!
+wait "$holder" || rc_a=$?
+wait "$waiter" || rc_b=$?
+sed 's/^/#   /' "$TEST_TMP/app-idle-holder.log"
+check "a long capture doesn't deadlock the lock handover (status $rc_a)" [ "$rc_a" -eq 0 ]
+check "the waiting client ran too (status $rc_b)" [ "$rc_b" -eq 0 ]
 
 done_testing

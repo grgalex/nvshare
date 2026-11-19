@@ -415,6 +415,9 @@ wait_remainder:
 				did_work = 0;
 				continue;
 			}
+			/* Launches into a capture don't count as work: never idle then */
+			if (__atomic_load_n(&active_captures, __ATOMIC_ACQUIRE) > 0)
+				continue;
 			/*
 			 * At this point, the client has not submitted any new
 			 * work to the GPU within the last interval.

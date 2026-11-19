@@ -97,6 +97,12 @@ build_fake_libcuda() {
 	ln -s libcuda.so.1 "$TEST_TMP/libcuda.so"
 }
 
+# build_fake_nvml: build $TEST_TMP/libnvidia-ml.so.1, an idle GPU.
+build_fake_nvml() {
+	gcc -O2 -Wall -Wextra -shared -fPIC -Wl,-soname,libnvidia-ml.so.1 \
+		-o "$TEST_TMP/libnvidia-ml.so.1" "$TESTS_DIR/fake-libcuda/nvml.c"
+}
+
 start_scheduler() {
 	local i
 
