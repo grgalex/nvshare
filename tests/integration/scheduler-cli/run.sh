@@ -22,13 +22,29 @@
 build_nvshare
 start_scheduler
 
-"$NVSHARE_BIN/nvsharectl" -S off
+# ctl ARGS...: run nvsharectl, show its output and keep it in $CTL_OUT.
+ctl() {
+	CTL_OUT=$("$NVSHARE_BIN/nvsharectl" "$@" 2>&1)
+	echo "$CTL_OUT"
+}
+
+no_usage() {
+	! grep -q "^usage:" <<<"$CTL_OUT"
+}
+
+ctl -S off
 check "anti-thrashing off" wait_for_log "Scheduler turned OFF"
+check "-S off prints no usage" no_usage
 
-"$NVSHARE_BIN/nvsharectl" -S on
+ctl -S on
 check "anti-thrashing on" wait_for_log "Scheduler turned ON"
+check "-S on prints no usage" no_usage
 
-"$NVSHARE_BIN/nvsharectl" -T 5
+ctl -T 5
 check "set TQ" wait_for_log "New TQ = 5"
+check "-T prints no usage" no_usage
+
+ctl -h
+check "-h prints usage" grep -q "^usage:" <<<"$CTL_OUT"
 
 done_testing

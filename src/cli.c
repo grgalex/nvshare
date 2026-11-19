@@ -119,12 +119,9 @@ int main(int argc, const char *argv[])
 	int status;
 	int actions_done = 0;
 	const char *opt_err = NULL;
-	SimpleConfig config;
+	SimpleConfig config = {0};
 	xoptContext *ctx;
 	const char **extras = NULL;
-
-	config.cmdline_scheduler_tq = 0;
-	config.cmdline_anti_thrash = NULL;
 
 	ctx = xopt_context("nvsharectl", options,
 			XOPT_CTX_POSIXMEHARDER | XOPT_CTX_STRICT, &opt_err);
