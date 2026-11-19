@@ -42,6 +42,7 @@ I've written a [Medium article](https://grgalex.medium.com/gpu-virtualization-in
   - [Uninstall (Kubernetes)](#uninstall_k8s)
 - [Build For Local Use](#build_local)
 - [Build Docker Images](#build_docker)
+- [Changelog](#changelog)
 - [Future Improvements](#future_improves)
 - [Feedback](#feedbk)
 - [Cite This Work](#cite)
@@ -575,6 +576,20 @@ kubectl delete -f https://raw.githubusercontent.com/grgalex/nvshare/main/kuberne
       ```bash
       make push
       ```
+
+<a name="changelog"/>
+
+## Changelog
+
+Latest changes (0.2.0, unreleased):
+
+- Fix crashes of applications that use CUDA graphs, such as Ollama and PyTorch, and make graph launches wait for the GPU lock like kernel launches (#28).
+- Make kernels launched with `cuLaunchKernelEx()` or `cuLaunchCooperativeKernel()` wait for the GPU lock too.
+- Fix a deadlock at startup with drivers whose `cuInit()` looks up its own symbols (#27).
+- `nvsharectl` no longer prints its usage after successful commands (#3).
+- The scheduler exits cleanly on `SIGTERM` and `SIGINT` and removes its socket.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 <a name="future_improves"/>
 
