@@ -366,6 +366,9 @@ remainder:
 				drop_lock_sent = 0;
 				continue;
 			}
+			/* Nobody is waiting: let the holder keep the lock. */
+			if (requests->next == NULL)
+				continue;
 			/*
 			 * Strict handling of clients. If something goes wrong,
 			 * clean them up.
