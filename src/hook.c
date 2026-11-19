@@ -49,7 +49,7 @@
 
 static void *real_dlsym_225(void *handle, const char *symbol);
 static void *get_graph_hook(const char *symbol);
-static void *hook_for_real(void *fn);
+static void *hook_for_real(const char *symbol, void *fn);
 
 cuCtxSynchronize_func real_cuCtxSynchronize = NULL;
 cuLaunchKernel_func real_cuLaunchKernel = NULL;
@@ -629,7 +629,7 @@ CUresult cuGetProcAddress(const char *symbol, void **pfn, int cudaVersion,
 	} else {
 		result = real_cuGetProcAddress(symbol, pfn, cudaVersion, flags);
 		if (result == CUDA_SUCCESS)
-			*pfn = hook_for_real(*pfn);
+			*pfn = hook_for_real(symbol, *pfn);
 	}
 
 	return result;
@@ -694,7 +694,7 @@ CUresult cuGetProcAddress_v2(const char *symbol, void **pfn, int cudaVersion,
 		result = real_cuGetProcAddress_v2(symbol, pfn, cudaVersion,
 				                  flags, symbolStatus);
 		if (result == CUDA_SUCCESS)
-			*pfn = hook_for_real(*pfn);
+			*pfn = hook_for_real(symbol, *pfn);
 	}
 
 	return result;
@@ -1228,7 +1228,7 @@ static void *get_graph_hook(const char *symbol)
  * cuGetProcAddress() picks the variant (_v2, _ptsz) from the version and
  * flags. Map the real function it returned to our wrapper of that variant.
  */
-static void *hook_for_real(void *fn)
+static void *hook_for_real(const char *symbol, void *fn)
 {
 	const struct { void *real; void *hook; } hooks[] = {
 		{(void *)real_cuGraphLaunch, (void *)cuGraphLaunch},
@@ -1246,6 +1246,11 @@ static void *hook_for_real(void *fn)
 	for (size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); i++)
 		if (fn != NULL && fn == hooks[i].real)
 			return hooks[i].hook;
+	if (strncmp(symbol, "cuGraphLaunch", 13) == 0 ||
+	    strncmp(symbol, "cuStreamBeginCapture", 20) == 0 ||
+	    strncmp(symbol, "cuStreamEndCapture", 18) == 0)
+		log_warn("Can't hook %s, CUDA graphs may break or bypass nvshare",
+			 symbol);
 	return fn;
 }
 

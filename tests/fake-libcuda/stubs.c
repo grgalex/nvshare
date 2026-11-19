@@ -103,3 +103,16 @@ WEAK int cuCtxSynchronize(void)
 }
 
 WEAK int cuGraphLaunch(void *exec, void *stream) { (void)exec; (void)stream; return 0; }
+
+/* Returns a function libnvshare doesn't know for every symbol */
+static int unknown_function(void) { return 0; }
+
+WEAK int cuGetProcAddress_v2(const char *symbol, void **pfn, int version,
+			     unsigned long long flags, int *status)
+{
+	(void)symbol; (void)version; (void)flags;
+	*pfn = (void *)unknown_function;
+	if (status != NULL)
+		*status = 0;
+	return 0;
+}
