@@ -50,6 +50,8 @@ WEAK int cuMemFree_v2(void) { return 0; }
 WEAK int cuCtxSetCurrent(void) { return 0; }
 WEAK int cuCtxGetCurrent(void) { return 0; }
 WEAK int cuLaunchKernel(void) { return 0; }
+WEAK int cuLaunchKernelEx(void) { return 0; }
+WEAK int cuLaunchCooperativeKernel(void) { return 0; }
 WEAK int cuMemcpy(void) { return 0; }
 WEAK int cuMemcpyAsync(void) { return 0; }
 WEAK int cuMemcpyDtoH_v2(void) { return 0; }

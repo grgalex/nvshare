@@ -48,7 +48,7 @@
 #define KERN_SYNC_WINDOW_MAX 2048          /* Pending Kernels */
 
 static void *real_dlsym_225(void *handle, const char *symbol);
-static void *get_graph_hook(const char *symbol);
+static void *get_variant_hook(const char *symbol);
 static void *hook_for_real(const char *symbol, void *fn);
 
 cuCtxSynchronize_func real_cuCtxSynchronize = NULL;
@@ -71,6 +71,10 @@ cuGetErrorName_func real_cuGetErrorName = NULL;
 cuCtxSetCurrent_func real_cuCtxSetCurrent = NULL;
 cuCtxGetCurrent_func real_cuCtxGetCurrent = NULL;
 cuInit_func real_cuInit = NULL;
+cuLaunchKernelEx_func real_cuLaunchKernelEx = NULL;
+cuLaunchKernelEx_func real_cuLaunchKernelEx_ptsz = NULL;
+cuLaunchCooperativeKernel_func real_cuLaunchCooperativeKernel = NULL;
+cuLaunchCooperativeKernel_func real_cuLaunchCooperativeKernel_ptsz = NULL;
 cuGraphLaunch_func real_cuGraphLaunch = NULL;
 cuGraphLaunch_func real_cuGraphLaunch_ptsz = NULL;
 cuStreamBeginCapture_func real_cuStreamBeginCapture = NULL;
@@ -304,6 +308,10 @@ static void bootstrap_cuda(void)
 		log_fatal("%s", error);
 
 	/* Optional: older drivers lack some of these. */
+	real_cuLaunchKernelEx = (cuLaunchKernelEx_func)optional_sym(cuda_handle, "cuLaunchKernelEx");
+	real_cuLaunchKernelEx_ptsz = (cuLaunchKernelEx_func)optional_sym(cuda_handle, "cuLaunchKernelEx_ptsz");
+	real_cuLaunchCooperativeKernel = (cuLaunchCooperativeKernel_func)optional_sym(cuda_handle, "cuLaunchCooperativeKernel");
+	real_cuLaunchCooperativeKernel_ptsz = (cuLaunchCooperativeKernel_func)optional_sym(cuda_handle, "cuLaunchCooperativeKernel_ptsz");
 	real_cuGraphLaunch = (cuGraphLaunch_func)optional_sym(cuda_handle, "cuGraphLaunch");
 	real_cuGraphLaunch_ptsz = (cuGraphLaunch_func)optional_sym(cuda_handle, "cuGraphLaunch_ptsz");
 	real_cuStreamBeginCapture = (cuStreamBeginCapture_func)optional_sym(cuda_handle, "cuStreamBeginCapture");
@@ -523,7 +531,7 @@ static void *get_hook(const char *symbol)
 		return (void *)(&cuMemcpyDtoDAsync);
 	}
 
-	return get_graph_hook(symbol);
+	return get_variant_hook(symbol);
 }
 
 /* Some drivers dlsym() their own functions inside cuInit() (#27). */
@@ -1053,6 +1061,83 @@ CUresult cuMemcpyDtoDAsync(CUdeviceptr dstDevice, CUdeviceptr srcDevice,
 	return result;
 }
 
+static CUresult launch_ex(cuLaunchKernelEx_func real, const CUlaunchConfig *config,
+	CUfunction f, void **kernelParams, void **extra, CUstream query_stream)
+{
+	CUresult result;
+
+	if (real == NULL) return CUDA_ERROR_NOT_INITIALIZED;
+
+	if (stream_is_capturing(query_stream))
+		return real(config, f, kernelParams, extra);
+
+	continue_with_lock();
+	result = real(config, f, kernelParams, extra);
+	cuda_driver_check_error(result, "cuLaunchKernelEx");
+	count_launch();
+	return result;
+}
+
+CUresult cuLaunchKernelEx(const CUlaunchConfig *config, CUfunction f,
+	void **kernelParams, void **extra)
+{
+	return launch_ex(real_cuLaunchKernelEx, config, f, kernelParams, extra,
+		config ? config->hStream : NULL);
+}
+
+CUresult cuLaunchKernelEx_ptsz(const CUlaunchConfig *config, CUfunction f,
+	void **kernelParams, void **extra)
+{
+	CUstream stream = config ? config->hStream : NULL;
+
+	return launch_ex(real_cuLaunchKernelEx_ptsz, config, f, kernelParams,
+		extra, stream ? stream : CU_STREAM_PER_THREAD);
+}
+
+static CUresult launch_cooperative(cuLaunchCooperativeKernel_func real,
+	CUfunction f, unsigned int gridDimX, unsigned int gridDimY,
+	unsigned int gridDimZ, unsigned int blockDimX, unsigned int blockDimY,
+	unsigned int blockDimZ, unsigned int sharedMemBytes, CUstream hStream,
+	void **kernelParams, CUstream query_stream)
+{
+	CUresult result;
+
+	if (real == NULL) return CUDA_ERROR_NOT_INITIALIZED;
+
+	if (stream_is_capturing(query_stream))
+		return real(f, gridDimX, gridDimY, gridDimZ, blockDimX,
+			blockDimY, blockDimZ, sharedMemBytes, hStream,
+			kernelParams);
+
+	continue_with_lock();
+	result = real(f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY,
+		blockDimZ, sharedMemBytes, hStream, kernelParams);
+	cuda_driver_check_error(result, "cuLaunchCooperativeKernel");
+	count_launch();
+	return result;
+}
+
+CUresult cuLaunchCooperativeKernel(CUfunction f, unsigned int gridDimX,
+	unsigned int gridDimY, unsigned int gridDimZ, unsigned int blockDimX,
+	unsigned int blockDimY, unsigned int blockDimZ,
+	unsigned int sharedMemBytes, CUstream hStream, void **kernelParams)
+{
+	return launch_cooperative(real_cuLaunchCooperativeKernel, f, gridDimX,
+		gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ,
+		sharedMemBytes, hStream, kernelParams, hStream);
+}
+
+CUresult cuLaunchCooperativeKernel_ptsz(CUfunction f, unsigned int gridDimX,
+	unsigned int gridDimY, unsigned int gridDimZ, unsigned int blockDimX,
+	unsigned int blockDimY, unsigned int blockDimZ,
+	unsigned int sharedMemBytes, CUstream hStream, void **kernelParams)
+{
+	return launch_cooperative(real_cuLaunchCooperativeKernel_ptsz, f,
+		gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ,
+		sharedMemBytes, hStream, kernelParams,
+		hStream ? hStream : CU_STREAM_PER_THREAD);
+}
+
 static CUresult launch_graph(cuGraphLaunch_func real, CUgraphExec hGraphExec,
 	CUstream hStream, CUstream query_stream)
 {
@@ -1202,10 +1287,14 @@ CUresult cuStreamEndCapture_ptsz(CUstream hStream, CUgraph *phGraph)
 		hStream ? hStream : CU_STREAM_PER_THREAD);
 }
 
-/* Our version of a graph or capture function, by exact symbol name. */
-static void *get_graph_hook(const char *symbol)
+/* Our version of a launch, graph or capture function, by exact name. */
+static void *get_variant_hook(const char *symbol)
 {
 	static const struct { const char *name; void *hook; } hooks[] = {
+		{"cuLaunchKernelEx", (void *)cuLaunchKernelEx},
+		{"cuLaunchKernelEx_ptsz", (void *)cuLaunchKernelEx_ptsz},
+		{"cuLaunchCooperativeKernel", (void *)cuLaunchCooperativeKernel},
+		{"cuLaunchCooperativeKernel_ptsz", (void *)cuLaunchCooperativeKernel_ptsz},
 		{"cuGraphLaunch", (void *)cuGraphLaunch},
 		{"cuGraphLaunch_ptsz", (void *)cuGraphLaunch_ptsz},
 		{"cuStreamBeginCapture", (void *)cuStreamBeginCapture},
@@ -1231,6 +1320,10 @@ static void *get_graph_hook(const char *symbol)
 static void *hook_for_real(const char *symbol, void *fn)
 {
 	const struct { void *real; void *hook; } hooks[] = {
+		{(void *)real_cuLaunchKernelEx, (void *)cuLaunchKernelEx},
+		{(void *)real_cuLaunchKernelEx_ptsz, (void *)cuLaunchKernelEx_ptsz},
+		{(void *)real_cuLaunchCooperativeKernel, (void *)cuLaunchCooperativeKernel},
+		{(void *)real_cuLaunchCooperativeKernel_ptsz, (void *)cuLaunchCooperativeKernel_ptsz},
 		{(void *)real_cuGraphLaunch, (void *)cuGraphLaunch},
 		{(void *)real_cuGraphLaunch_ptsz, (void *)cuGraphLaunch_ptsz},
 		{(void *)real_cuStreamBeginCapture, (void *)cuStreamBeginCapture},
@@ -1246,10 +1339,8 @@ static void *hook_for_real(const char *symbol, void *fn)
 	for (size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); i++)
 		if (fn != NULL && fn == hooks[i].real)
 			return hooks[i].hook;
-	if (strncmp(symbol, "cuGraphLaunch", 13) == 0 ||
-	    strncmp(symbol, "cuStreamBeginCapture", 20) == 0 ||
-	    strncmp(symbol, "cuStreamEndCapture", 18) == 0)
-		log_warn("Can't hook %s, CUDA graphs may break or bypass nvshare",
+	if (get_variant_hook(symbol) != NULL)
+		log_warn("Can't hook %s, its work may break or bypass nvshare",
 			 symbol);
 	return fn;
 }

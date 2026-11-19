@@ -127,6 +127,11 @@ wait_for_log() {
 	return 1
 }
 
+# not_grep PATTERN FILE: true if FILE doesn't match PATTERN.
+not_grep() {
+	! grep -q -- "$1" "$2"
+}
+
 # check DESCRIPTION COMMAND...: run COMMAND and report it in TAP format.
 check() {
 	local desc=$1

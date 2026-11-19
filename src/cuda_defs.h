@@ -59,6 +59,20 @@ typedef struct CUgraphNode_st *CUgraphNode;
 typedef struct CUgraphExec_st *CUgraphExec;
 typedef struct CUgraphEdgeData_st CUgraphEdgeData;
 typedef int CUstreamCaptureMode;
+typedef struct CUlaunchAttribute_st CUlaunchAttribute;
+
+typedef struct CUlaunchConfig_st {
+	unsigned int gridDimX;
+	unsigned int gridDimY;
+	unsigned int gridDimZ;
+	unsigned int blockDimX;
+	unsigned int blockDimY;
+	unsigned int blockDimZ;
+	unsigned int sharedMemBytes;
+	CUstream hStream;
+	CUlaunchAttribute *attrs;
+	unsigned int numAttrs;
+} CUlaunchConfig;
 
 typedef enum CUstreamCaptureStatus_enum {
 	CU_STREAM_CAPTURE_STATUS_NONE = 0,
@@ -155,6 +169,12 @@ typedef CUresult (*cuMemcpyHtoDAsync_func)(CUdeviceptr dstDevice,
 typedef CUresult (*cuMemcpyDtoDAsync_func)(CUdeviceptr dstDevice,
 	CUdeviceptr srcDevice, size_t ByteCount, CUstream hStream);
 typedef CUresult (*cuGraphLaunch_func)(CUgraphExec hGraphExec, CUstream hStream);
+typedef CUresult (*cuLaunchKernelEx_func)(const CUlaunchConfig *config,
+	CUfunction f, void **kernelParams, void **extra);
+typedef CUresult (*cuLaunchCooperativeKernel_func)(CUfunction f,
+	unsigned int gridDimX, unsigned int gridDimY, unsigned int gridDimZ,
+	unsigned int blockDimX, unsigned int blockDimY, unsigned int blockDimZ,
+	unsigned int sharedMemBytes, CUstream hStream, void **kernelParams);
 typedef CUresult (*cuStreamBeginCapture_func)(CUstream hStream);
 typedef CUresult (*cuStreamBeginCapture_v2_func)(CUstream hStream,
 	CUstreamCaptureMode mode);

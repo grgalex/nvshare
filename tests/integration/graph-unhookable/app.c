@@ -14,7 +14,7 @@
  * limitations under the License.
  *
  *
- * Test app: looks up cuGraphLaunch through cuGetProcAddress_v2().
+ * Test app: looks up SYMBOL through cuGetProcAddress_v2().
  */
 
 #include <stdio.h>
@@ -23,11 +23,13 @@ int cuInit(unsigned int flags);
 int cuGetProcAddress_v2(const char *symbol, void **pfn, int version,
 			unsigned long long flags, int *status);
 
-int main(void)
+int main(int argc, char *argv[])
 {
 	void *fn = NULL;
 
 	if (cuInit(0) != 0)
 		return 1;
-	return cuGetProcAddress_v2("cuGraphLaunch", &fn, 12080, 0, NULL);
+	if (argc < 2)
+		return 1;
+	return cuGetProcAddress_v2(argv[1], &fn, 12080, 0, NULL);
 }
