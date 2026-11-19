@@ -73,6 +73,7 @@ typedef enum cuda_drv_error_enum {
 	CUDA_SUCCESS               = 0,
 	CUDA_ERROR_OUT_OF_MEMORY   = 2,
 	CUDA_ERROR_NOT_INITIALIZED = 3,
+	CUDA_ERROR_STREAM_CAPTURE_INVALIDATED = 901,
 	CUDA_ERROR_UNKNOWN         = 999
 } CUresult;
 

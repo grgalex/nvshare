@@ -1163,17 +1163,27 @@ CUresult cuStreamBeginCaptureToGraph_ptsz(CUstream hStream, CUgraph hGraph,
 static CUresult end_capture(cuStreamEndCapture_func real, CUstream hStream,
 	CUgraph *phGraph, CUstream query_stream)
 {
-	CUstreamCaptureStatus status = CU_STREAM_CAPTURE_STATUS_ACTIVE;
+	CUstreamCaptureStatus before, after;
 	CUresult result;
+	int ended;
 
 	if (real == NULL) return CUDA_ERROR_NOT_INITIALIZED;
 	true_or_exit(pthread_mutex_lock(&capture_mutex) == 0);
-	if (real_cuStreamIsCapturing != NULL &&
-	    real_cuStreamIsCapturing(query_stream, &status) != CUDA_SUCCESS)
-		status = CU_STREAM_CAPTURE_STATUS_NONE;
-	result = real(hStream, phGraph);
-	/* Ending a capture takes the stream out of capture mode, even on error */
-	if (status != CU_STREAM_CAPTURE_STATUS_NONE && active_captures > 0) {
+	if (real_cuStreamIsCapturing == NULL) {
+		result = real(hStream, phGraph);
+		ended = (result == CUDA_SUCCESS ||
+			 result == CUDA_ERROR_STREAM_CAPTURE_INVALIDATED);
+	} else {
+		if (real_cuStreamIsCapturing(query_stream, &before) != CUDA_SUCCESS)
+			before = CU_STREAM_CAPTURE_STATUS_NONE;
+		result = real(hStream, phGraph);
+		/* E.g. ending from a joined stream fails and leaves it open */
+		if (real_cuStreamIsCapturing(query_stream, &after) != CUDA_SUCCESS)
+			after = CU_STREAM_CAPTURE_STATUS_NONE;
+		ended = before != CU_STREAM_CAPTURE_STATUS_NONE &&
+			after == CU_STREAM_CAPTURE_STATUS_NONE;
+	}
+	if (ended && active_captures > 0) {
 		__atomic_sub_fetch(&active_captures, 1, __ATOMIC_RELEASE);
 		true_or_exit(pthread_cond_broadcast(&capture_cv) == 0);
 	}

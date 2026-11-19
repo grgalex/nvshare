@@ -60,7 +60,8 @@ WEAK int cuMemcpyDtoD_v2(void) { return 0; }
 WEAK int cuMemcpyDtoDAsync_v2(void) { return 0; }
 
 /* One capture at a time. Like the real driver, a sync during it fails (900)
- * and invalidates it.
+ * and invalidates it. The stream right after the origin stream has joined
+ * the capture: it is capturing, but can't end it.
  */
 static void *capture_stream;
 static int capture_invalidated;
@@ -75,6 +76,8 @@ WEAK int cuStreamBeginCapture_v2(void *stream, int mode)
 
 WEAK int cuStreamEndCapture(void *stream, void **graph)
 {
+	if (capture_stream != NULL && stream == (char *)capture_stream + 1)
+		return 903; /* CUDA_ERROR_STREAM_CAPTURE_UNMATCHED */
 	if (stream == NULL || stream != capture_stream)
 		return 401; /* CUDA_ERROR_ILLEGAL_STATE */
 	capture_stream = NULL;
@@ -84,7 +87,8 @@ WEAK int cuStreamEndCapture(void *stream, void **graph)
 
 WEAK int cuStreamIsCapturing(void *stream, int *status)
 {
-	*status = (stream != NULL && stream == capture_stream) ?
+	*status = (capture_stream != NULL && (stream == capture_stream ||
+		   stream == (char *)capture_stream + 1)) ?
 		  (capture_invalidated ? 2 : 1) : 0;
 	return 0;
 }
