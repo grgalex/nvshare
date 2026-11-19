@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.15.15 as build
+FROM golang:1.26.11 AS build
 COPY ./kubernetes/device-plugin/ /build
 WORKDIR /build
 RUN export GO111MODULE=on && \
@@ -22,7 +22,7 @@ RUN export GO111MODULE=on && \
     go build -a -ldflags="-s -w" -o nvshare-device-plugin
 
 
-FROM alpine:3.15
+FROM alpine:3.24.4
 COPY --from=build /build/nvshare-device-plugin /usr/local/bin/nvshare-device-plugin
 USER root
 ENTRYPOINT ["nvshare-device-plugin"]
