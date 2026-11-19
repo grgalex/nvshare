@@ -33,6 +33,7 @@
 #include "comm.h"
 #include "common.h"
 #include "client.h"
+#include "version.h"
 #include "cuda_defs.h"
 
 void *client_fn(void *arg __attribute__((unused)));
@@ -254,7 +255,7 @@ void *client_fn(void *arg __attribute__((unused)))
 		log_debug("Received %s", message_type_string[in_msg.type]);
 
 		true_or_exit(sscanf(in_msg.data, "%" SCNx64, &nvshare_client_id) == 1);
-		log_info("Successfully initialized nvshare GPU");
+		log_info("Successfully initialized nvshare GPU (version %s)", NVSHARE_VERSION);
 		log_info("Client ID = %016" PRIx64, nvshare_client_id);
 		scheduler_on = 1;
 		own_lock = 0;
@@ -265,7 +266,7 @@ void *client_fn(void *arg __attribute__((unused)))
 		log_debug("Received %s", message_type_string[in_msg.type]);
 
 		true_or_exit(sscanf(in_msg.data, "%" SCNx64, &nvshare_client_id) == 1);
-		log_info("Successfully initialized nvshare GPU");
+		log_info("Successfully initialized nvshare GPU (version %s)", NVSHARE_VERSION);
 		log_info("Client ID = %016" PRIx64, nvshare_client_id);
 		scheduler_on = 0;
 		own_lock = 1;

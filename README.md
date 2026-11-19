@@ -279,6 +279,7 @@ View the presentation on `nvshare`:
       -T, --set-tq=n               Set the time quantum of the scheduler to TQ seconds. Only accepts positive integers.
       -S, --anti-thrash=s          Set the desired status of the scheduler. Only accepts values "on" or "off".
       -h, --help                   Shows this help message
+      -V, --version                Shows the nvshare version
       ```
 
 4. You can enable debug logs for any `nvshare`-enabled application by setting the `NVSHARE_DEBUG=1` environment variable.

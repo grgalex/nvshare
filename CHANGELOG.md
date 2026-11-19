@@ -11,6 +11,7 @@
 - Update the device plugin's gRPC and x/net dependencies (security fixes) and build it with Go 1.26.
 - Base the scheduler image and the libnvshare runtime image on Ubuntu 24.04.
 - Add `make test` (no GPU needed) and `make test-gpu`.
+- Report the version: `nvsharectl --version`, and at startup in the scheduler and client logs.
 
 ## 0.1.1 (2024-01-29)
 

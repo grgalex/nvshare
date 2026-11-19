@@ -33,6 +33,7 @@
 
 #include "comm.h"
 #include "common.h"
+#include "version.h"
 #include "utlist.h"
 
 #define NVSHARE_DEFAULT_TQ 30
@@ -520,8 +521,10 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 	debug_val = getenv(ENV_NVSHARE_DEBUG);
 	if (debug_val != NULL) {
 		__debug = 1;
-		log_info("nvshare-scheduler started in debug mode");
-	} else log_info("nvshare-scheduler started in normal mode");
+		log_info("nvshare-scheduler %s started in debug mode",
+			 NVSHARE_VERSION);
+	} else log_info("nvshare-scheduler %s started in normal mode",
+			NVSHARE_VERSION);
 
 	/*
 	 * Permissions are 711:

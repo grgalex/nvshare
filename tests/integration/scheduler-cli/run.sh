@@ -47,4 +47,8 @@ check "-T prints no usage" no_usage
 ctl -h
 check "-h prints usage" grep -q "^usage:" <<<"$CTL_OUT"
 
+ctl --version
+check "--version prints the version" grep -qE "^nvsharectl [0-9]+\.[0-9]+\.[0-9]+" <<<"$CTL_OUT"
+check "scheduler logs its version" grep -qE "nvshare-scheduler [0-9]+\.[0-9]+\.[0-9]+.* started" "$SCHEDULER_LOG"
+
 done_testing

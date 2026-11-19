@@ -26,6 +26,7 @@
 #include "xopt.h"
 #include "comm.h"
 #include "common.h"
+#include "version.h"
 
 static char nvscheduler_socket_path[NVSHARE_SOCK_PATH_MAX];
 
@@ -34,6 +35,7 @@ typedef struct {
 	int cmdline_scheduler_tq;
 	const char *cmdline_anti_thrash;
 	bool help;
+	bool version;
 } SimpleConfig;
 
 
@@ -66,6 +68,15 @@ xoptOption options[] = {
 		XOPT_TYPE_BOOL,
 		0,
 		"Shows this help message"
+	},
+	{
+		"version",
+		'V',
+		offsetof(SimpleConfig, version),
+		0,
+		XOPT_TYPE_BOOL,
+		0,
+		"Shows the nvshare version"
 	},
 	XOPT_NULLOPTION
 };
@@ -133,6 +144,11 @@ int main(int argc, const char *argv[])
 	xopt_parse(ctx, argc, argv, &config, &extras, &opt_err);
 	if (opt_err) {
 		log_fatal("Error: %s", opt_err);
+	}
+
+	if (config.version) {
+		printf("nvsharectl %s\n", NVSHARE_VERSION);
+		return 0;
 	}
 
 	if (nvshare_get_scheduler_path(nvscheduler_socket_path) != 0)
