@@ -388,10 +388,13 @@ static void initialize_libnvshare(void)
 void cuda_driver_check_error(CUresult err, const char *func_name)
 {
 	if (err != CUDA_SUCCESS) {
-		const char *err_string;
-		const char *err_name;
-		real_cuGetErrorString(err, &err_string);
-		real_cuGetErrorName(err, &err_name);
+		const char *err_string = "unknown";
+		const char *err_name = "unknown";
+		/* These fail and leave the strings unset during CUDA teardown */
+		if (real_cuGetErrorString(err, &err_string) != CUDA_SUCCESS)
+			err_string = "unknown";
+		if (real_cuGetErrorName(err, &err_name) != CUDA_SUCCESS)
+			err_name = "unknown";
 		log_warn("%s returned %s: %s",
 	                 func_name, err_name, err_string);
 	}
