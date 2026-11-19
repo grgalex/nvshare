@@ -23,9 +23,7 @@
 HERE=$(cd "$(dirname "$0")" && pwd)
 
 build_nvshare
-gcc -O2 -Wall -Wextra -shared -fPIC -Wl,-soname,libcuda.so.1 \
-	-o "$TEST_TMP/libcuda.so.1" "$HERE/fake_libcuda.c"
-ln -s libcuda.so.1 "$TEST_TMP/libcuda.so"
+build_fake_libcuda
 gcc -O2 -Wall -Wextra -o "$TEST_TMP/app" "$HERE/app.c" -L"$TEST_TMP" -lcuda
 start_scheduler
 "$NVSHARE_BIN/nvsharectl" -T 1

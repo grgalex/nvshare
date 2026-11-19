@@ -14,14 +14,12 @@
  * limitations under the License.
  *
  *
- * Fake libcuda whose cuInit() dlsym()s and calls "cuInit", like the driver
- * in issue #27.
+ * cuInit() that dlsym()s and calls "cuInit", like the driver in issue #27.
  */
 
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <pthread.h>
-#include <stddef.h>
 #include <stdio.h>
 
 typedef int (*cuInit_fn)(unsigned int);
@@ -52,39 +50,3 @@ int cuInit(unsigned int flags)
 	pthread_once(&driver_once, driver_init);
 	return 0;
 }
-
-int cuGetErrorString(int error, const char **str)
-{
-	(void)error;
-	*str = "fake-libcuda error";
-	return 0;
-}
-
-int cuGetErrorName(int error, const char **str)
-{
-	(void)error;
-	*str = "FAKE_LIBCUDA_ERROR";
-	return 0;
-}
-
-int cuMemGetInfo_v2(size_t *free_bytes, size_t *total_bytes)
-{
-	*free_bytes = (size_t)8 << 30;
-	*total_bytes = (size_t)8 << 30;
-	return 0;
-}
-
-int cuMemAllocManaged(void) { return 0; }
-int cuMemFree_v2(void) { return 0; }
-int cuCtxSetCurrent(void) { return 0; }
-int cuCtxGetCurrent(void) { return 0; }
-int cuCtxSynchronize(void) { return 0; }
-int cuLaunchKernel(void) { return 0; }
-int cuMemcpy(void) { return 0; }
-int cuMemcpyAsync(void) { return 0; }
-int cuMemcpyDtoH_v2(void) { return 0; }
-int cuMemcpyDtoHAsync_v2(void) { return 0; }
-int cuMemcpyHtoD_v2(void) { return 0; }
-int cuMemcpyHtoDAsync_v2(void) { return 0; }
-int cuMemcpyDtoD_v2(void) { return 0; }
-int cuMemcpyDtoDAsync_v2(void) { return 0; }

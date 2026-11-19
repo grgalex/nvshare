@@ -88,6 +88,15 @@ build_nvshare() {
 	NVSHARE_BIN=$TEST_TMP/src
 }
 
+# build_fake_libcuda [FILE.c...]: build $TEST_TMP/libcuda.so{,.1} from the
+# shared stubs plus the given files, which override stubs they redefine.
+build_fake_libcuda() {
+	gcc -O2 -Wall -Wextra -shared -fPIC -Wl,-soname,libcuda.so.1 \
+		-o "$TEST_TMP/libcuda.so.1" "$TESTS_DIR/fake-libcuda/stubs.c" "$@" \
+		-ldl -lpthread
+	ln -s libcuda.so.1 "$TEST_TMP/libcuda.so"
+}
+
 start_scheduler() {
 	local i
 
