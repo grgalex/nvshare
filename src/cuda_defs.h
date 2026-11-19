@@ -54,6 +54,19 @@ typedef int CUdevice;
 typedef struct CUctx_st *CUcontext;
 typedef struct CUstream_st *CUstream;
 typedef struct CUfunc_st *CUfunction;
+typedef struct CUgraph_st *CUgraph;
+typedef struct CUgraphNode_st *CUgraphNode;
+typedef struct CUgraphExec_st *CUgraphExec;
+typedef struct CUgraphEdgeData_st CUgraphEdgeData;
+typedef int CUstreamCaptureMode;
+
+typedef enum CUstreamCaptureStatus_enum {
+	CU_STREAM_CAPTURE_STATUS_NONE = 0,
+	CU_STREAM_CAPTURE_STATUS_ACTIVE = 1,
+	CU_STREAM_CAPTURE_STATUS_INVALIDATED = 2,
+} CUstreamCaptureStatus;
+
+#define CU_STREAM_PER_THREAD ((CUstream)0x2)
 typedef struct nvmlDevice_st* nvmlDevice_t;
 
 typedef enum cuda_drv_error_enum {
@@ -140,6 +153,17 @@ typedef CUresult (*cuMemcpyHtoDAsync_func)(CUdeviceptr dstDevice,
 	const void* srcHost, size_t ByteCount, CUstream hStream);
 typedef CUresult (*cuMemcpyDtoDAsync_func)(CUdeviceptr dstDevice,
 	CUdeviceptr srcDevice, size_t ByteCount, CUstream hStream);
+typedef CUresult (*cuGraphLaunch_func)(CUgraphExec hGraphExec, CUstream hStream);
+typedef CUresult (*cuStreamBeginCapture_func)(CUstream hStream);
+typedef CUresult (*cuStreamBeginCapture_v2_func)(CUstream hStream,
+	CUstreamCaptureMode mode);
+typedef CUresult (*cuStreamBeginCaptureToGraph_func)(CUstream hStream,
+	CUgraph hGraph, const CUgraphNode *dependencies,
+	const CUgraphEdgeData *dependencyData, size_t numDependencies,
+	CUstreamCaptureMode mode);
+typedef CUresult (*cuStreamEndCapture_func)(CUstream hStream, CUgraph *phGraph);
+typedef CUresult (*cuStreamIsCapturing_func)(CUstream hStream,
+	CUstreamCaptureStatus *captureStatus);
 
 typedef nvmlReturn_t (*nvmlDeviceGetUtilizationRates_func)(nvmlDevice_t device,
 	nvmlUtilization_t *utilization);

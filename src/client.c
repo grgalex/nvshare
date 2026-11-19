@@ -304,11 +304,24 @@ void *client_fn(void *arg __attribute__((unused)))
 			log_debug("Received %s", message_type_string[in_msg.type]);
 
 			if (own_lock == 1) { /* Sanity check */
-				own_lock = 0; /* Block work submission */
-				cuda_sync_context(); /* Ensure all submitted work done */
-				out_msg.type = LOCK_RELEASED;
-				true_or_exit(write_whole(rsock, &out_msg, sizeof(out_msg)) == sizeof(out_msg));
-				log_debug("Sent %s", message_type_string[out_msg.type]);
+				/*
+				 * We can't sync while a graph capture is open.
+				 * Wait for it to end, and keep new ones from
+				 * starting until we've released the lock.
+				 */
+				true_or_exit(pthread_mutex_unlock(&global_mutex) == 0);
+				true_or_exit(pthread_mutex_lock(&capture_mutex) == 0);
+				while (active_captures > 0)
+					true_or_exit(pthread_cond_wait(&capture_cv, &capture_mutex) == 0);
+				true_or_exit(pthread_mutex_lock(&global_mutex) == 0);
+				if (own_lock == 1) {
+					own_lock = 0; /* Block work submission */
+					cuda_sync_context(); /* Ensure all submitted work done */
+					out_msg.type = LOCK_RELEASED;
+					true_or_exit(write_whole(rsock, &out_msg, sizeof(out_msg)) == sizeof(out_msg));
+					log_debug("Sent %s", message_type_string[out_msg.type]);
+				}
+				true_or_exit(pthread_mutex_unlock(&capture_mutex) == 0);
 			}
 
 			break;
@@ -449,11 +462,19 @@ wait_remainder:
 				 * on the GPU for the past interval instead of
 				 * being idle.
 				 */
+				/* Not idle if a graph capture is open */
+				if (pthread_mutex_trylock(&capture_mutex) != 0)
+					continue;
+				if (active_captures > 0) {
+					true_or_exit(pthread_mutex_unlock(&capture_mutex) == 0);
+					continue;
+				}
 				true_or_exit(clock_gettime(CLOCK_MONOTONIC,
 					&cuda_sync_start_time) == 0);
 				cuda_sync_context();
 				true_or_exit(clock_gettime(CLOCK_MONOTONIC,
 					&cuda_sync_complete_time) == 0);
+				true_or_exit(pthread_mutex_unlock(&capture_mutex) == 0);
 				timespecsub(&cuda_sync_complete_time, &cuda_sync_start_time, &cuda_sync_duration);
 
 				elapsed_ms = ((unsigned int)cuda_sync_duration.tv_sec * 1000)

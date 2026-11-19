@@ -17,7 +17,12 @@
 #ifndef _NVSHARE_CLIENT_H
 #define _NVSHARE_CLIENT_H
 
+#include <pthread.h>
+
 extern void continue_with_lock(void);
+extern pthread_mutex_t capture_mutex;
+extern pthread_cond_t capture_cv;
+extern int active_captures;
 extern void initialize_client(void);
 
 #endif /* _NVSHARE_CLIENT_H */

@@ -2,6 +2,7 @@
 
 ## 0.2.0 (unreleased)
 
+- Fix crashes of applications that use CUDA graphs, such as Ollama and PyTorch, and make graph launches wait for the GPU lock like kernel launches (#28).
 - Fix a deadlock at startup with drivers whose `cuInit()` looks up its own symbols (#27).
 - `nvsharectl` no longer prints its usage after successful commands (#3).
 - The scheduler exits cleanly on `SIGTERM` and `SIGINT` and removes its socket.

@@ -48,6 +48,8 @@
 #define KERN_SYNC_WINDOW_MAX 2048          /* Pending Kernels */
 
 static void *real_dlsym_225(void *handle, const char *symbol);
+static void *get_graph_hook(const char *symbol);
+static void *hook_for_real(void *fn);
 
 cuCtxSynchronize_func real_cuCtxSynchronize = NULL;
 cuLaunchKernel_func real_cuLaunchKernel = NULL;
@@ -69,6 +71,22 @@ cuGetErrorName_func real_cuGetErrorName = NULL;
 cuCtxSetCurrent_func real_cuCtxSetCurrent = NULL;
 cuCtxGetCurrent_func real_cuCtxGetCurrent = NULL;
 cuInit_func real_cuInit = NULL;
+cuGraphLaunch_func real_cuGraphLaunch = NULL;
+cuGraphLaunch_func real_cuGraphLaunch_ptsz = NULL;
+cuStreamBeginCapture_func real_cuStreamBeginCapture = NULL;
+cuStreamBeginCapture_func real_cuStreamBeginCapture_ptsz = NULL;
+cuStreamBeginCapture_v2_func real_cuStreamBeginCapture_v2 = NULL;
+cuStreamBeginCapture_v2_func real_cuStreamBeginCapture_v2_ptsz = NULL;
+cuStreamBeginCaptureToGraph_func real_cuStreamBeginCaptureToGraph = NULL;
+cuStreamBeginCaptureToGraph_func real_cuStreamBeginCaptureToGraph_ptsz = NULL;
+cuStreamEndCapture_func real_cuStreamEndCapture = NULL;
+cuStreamEndCapture_func real_cuStreamEndCapture_ptsz = NULL;
+cuStreamIsCapturing_func real_cuStreamIsCapturing = NULL;
+
+/* Number of open stream captures. Syncing while one is open breaks it (#28). */
+pthread_mutex_t capture_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t capture_cv = PTHREAD_COND_INITIALIZER;
+int active_captures = 0;
 
 nvmlDeviceGetUtilizationRates_func real_nvmlDeviceGetUtilizationRates = NULL;
 nvmlInit_func real_nvmlInit = NULL;
@@ -100,6 +118,21 @@ struct cuda_mem_allocation *cuda_allocation_list = NULL;
 /* Initializaters will be executed only once per client application */
 static pthread_once_t init_libnvshare_done = PTHREAD_ONCE_INIT;
 static pthread_once_t init_done = PTHREAD_ONCE_INIT;
+
+static void *optional_sym(void *handle, const char *symbol)
+{
+	void *sym;
+	char *error;
+
+	dlerror();
+	sym = real_dlsym_225(handle, symbol);
+	error = dlerror();
+	if (error != NULL) {
+		log_debug("%s", error);
+		return NULL;
+	}
+	return sym;
+}
 
 /* Load real CUDA {Driver API, NVML} functions and bootstrap auxiliary stuff. */
 static void bootstrap_cuda(void)
@@ -269,6 +302,19 @@ static void bootstrap_cuda(void)
 	error = dlerror();
 	if (error != NULL)
 		log_fatal("%s", error);
+
+	/* Optional: older drivers lack some of these. */
+	real_cuGraphLaunch = (cuGraphLaunch_func)optional_sym(cuda_handle, "cuGraphLaunch");
+	real_cuGraphLaunch_ptsz = (cuGraphLaunch_func)optional_sym(cuda_handle, "cuGraphLaunch_ptsz");
+	real_cuStreamBeginCapture = (cuStreamBeginCapture_func)optional_sym(cuda_handle, "cuStreamBeginCapture");
+	real_cuStreamBeginCapture_ptsz = (cuStreamBeginCapture_func)optional_sym(cuda_handle, "cuStreamBeginCapture_ptsz");
+	real_cuStreamBeginCapture_v2 = (cuStreamBeginCapture_v2_func)optional_sym(cuda_handle, "cuStreamBeginCapture_v2");
+	real_cuStreamBeginCapture_v2_ptsz = (cuStreamBeginCapture_v2_func)optional_sym(cuda_handle, "cuStreamBeginCapture_v2_ptsz");
+	real_cuStreamBeginCaptureToGraph = (cuStreamBeginCaptureToGraph_func)optional_sym(cuda_handle, "cuStreamBeginCaptureToGraph");
+	real_cuStreamBeginCaptureToGraph_ptsz = (cuStreamBeginCaptureToGraph_func)optional_sym(cuda_handle, "cuStreamBeginCaptureToGraph_ptsz");
+	real_cuStreamEndCapture = (cuStreamEndCapture_func)optional_sym(cuda_handle, "cuStreamEndCapture");
+	real_cuStreamEndCapture_ptsz = (cuStreamEndCapture_func)optional_sym(cuda_handle, "cuStreamEndCapture_ptsz");
+	real_cuStreamIsCapturing = (cuStreamIsCapturing_func)optional_sym(cuda_handle, "cuStreamIsCapturing");
 
 	Dl_info cuda_info;
 	if (dladdr((void *)real_cuInit, &cuda_info) == 0)
@@ -474,7 +520,7 @@ static void *get_hook(const char *symbol)
 		return (void *)(&cuMemcpyDtoDAsync);
 	}
 
-	return NULL;
+	return get_graph_hook(symbol);
 }
 
 /* Some drivers dlsym() their own functions inside cuInit() (#27). */
@@ -579,6 +625,8 @@ CUresult cuGetProcAddress(const char *symbol, void **pfn, int cudaVersion,
 		*pfn = (void *)(&cuMemcpyDtoDAsync);
 	} else {
 		result = real_cuGetProcAddress(symbol, pfn, cudaVersion, flags);
+		if (result == CUDA_SUCCESS)
+			*pfn = hook_for_real(*pfn);
 	}
 
 	return result;
@@ -642,6 +690,8 @@ CUresult cuGetProcAddress_v2(const char *symbol, void **pfn, int cudaVersion,
 	} else {
 		result = real_cuGetProcAddress_v2(symbol, pfn, cudaVersion,
 				                  flags, symbolStatus);
+		if (result == CUDA_SUCCESS)
+			*pfn = hook_for_real(*pfn);
 	}
 
 	return result;
@@ -768,25 +818,23 @@ CUresult cuInit(unsigned int flags)
 }
 
 
-CUresult cuLaunchKernel(CUfunction f, unsigned int gridDimX,
-	unsigned int gridDimY, unsigned int gridDimZ, unsigned int blockDimX,
-	unsigned int blockDimY, unsigned int blockDimZ,
-	unsigned int sharedMemBytes, CUstream hStream, void **kernelParams,
-	void **extra)
+/* Return 1 if work launched on hStream is being captured into a graph. */
+static int stream_is_capturing(CUstream hStream)
 {
-	CUresult result = CUDA_SUCCESS;
+	CUstreamCaptureStatus status;
 
-	/* Return immediately if not initialized */
-	if (real_cuLaunchKernel == NULL) return CUDA_ERROR_NOT_INITIALIZED;
+	if (__atomic_load_n(&active_captures, __ATOMIC_ACQUIRE) == 0 ||
+	    real_cuStreamIsCapturing == NULL)
+		return 0;
+	if (real_cuStreamIsCapturing(hStream, &status) != CUDA_SUCCESS)
+		return 0;
+	return status != CU_STREAM_CAPTURE_STATUS_NONE;
+}
 
-	continue_with_lock();
-	result = real_cuLaunchKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX,
-		blockDimY, blockDimZ, sharedMemBytes, hStream, kernelParams, extra);
-	cuda_driver_check_error(result, CUDA_SYMBOL_STRING(cuLaunchKernel));
-
+/* Count a launch toward the pending kernel window. */
+static void count_launch(void)
+{
 	true_or_exit(pthread_mutex_lock(&kcount_mutex) == 0);
-
-
 	/*
 	 * Dynamic kernel submissing rate control.
 	 *
@@ -805,12 +853,14 @@ CUresult cuLaunchKernel(CUfunction f, unsigned int gridDimX,
 	 * trying to maintain a good throughput rate for smaller kernels.
 	 */
 	kern_since_sync++;
-	if (kern_since_sync >= pending_kernel_window) {
+	true_or_exit(pthread_mutex_lock(&capture_mutex) == 0);
+	/* Don't sync during a capture; catch up after it ends */
+	if (kern_since_sync >= pending_kernel_window && active_captures == 0) {
 		struct timespec cuda_cuda_sync_start_time = {0, 0};
 		struct timespec cuda_sync_complete_time = {0, 0};
 		struct timespec cuda_sync_duration = {0, 0};
 		true_or_exit(clock_gettime(CLOCK_MONOTONIC, &cuda_cuda_sync_start_time) == 0);
-		result = real_cuCtxSynchronize();
+		CUresult result = real_cuCtxSynchronize();
 		cuda_driver_check_error(result, CUDA_SYMBOL_STRING(cuCtxSynchronize));
 		true_or_exit(clock_gettime(CLOCK_MONOTONIC, &cuda_sync_complete_time) == 0);
 		timespecsub(&cuda_sync_complete_time, &cuda_cuda_sync_start_time, &cuda_sync_duration);
@@ -839,8 +889,33 @@ CUresult cuLaunchKernel(CUfunction f, unsigned int gridDimX,
 		log_debug("Pending Kernel Window is %d.", pending_kernel_window);
 		kern_since_sync = 0;
 	}
-
+	true_or_exit(pthread_mutex_unlock(&capture_mutex) == 0);
 	true_or_exit(pthread_mutex_unlock(&kcount_mutex) == 0);
+}
+
+CUresult cuLaunchKernel(CUfunction f, unsigned int gridDimX,
+	unsigned int gridDimY, unsigned int gridDimZ, unsigned int blockDimX,
+	unsigned int blockDimY, unsigned int blockDimZ,
+	unsigned int sharedMemBytes, CUstream hStream, void **kernelParams,
+	void **extra)
+{
+	CUresult result = CUDA_SUCCESS;
+
+	/* Return immediately if not initialized */
+	if (real_cuLaunchKernel == NULL) return CUDA_ERROR_NOT_INITIALIZED;
+
+	/* Captured, not run: no lock needed */
+	if (stream_is_capturing(hStream))
+		return real_cuLaunchKernel(f, gridDimX, gridDimY, gridDimZ,
+			blockDimX, blockDimY, blockDimZ, sharedMemBytes, hStream,
+			kernelParams, extra);
+
+	continue_with_lock();
+	result = real_cuLaunchKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX,
+		blockDimY, blockDimZ, sharedMemBytes, hStream, kernelParams, extra);
+	cuda_driver_check_error(result, CUDA_SYMBOL_STRING(cuLaunchKernel));
+
+	count_launch();
 	return result;
 }
 
@@ -973,6 +1048,192 @@ CUresult cuMemcpyDtoDAsync(CUdeviceptr dstDevice, CUdeviceptr srcDevice,
 	cuda_driver_check_error(result, CUDA_SYMBOL_STRING(cuMemcpyDtoDAsync));
 
 	return result;
+}
+
+static CUresult launch_graph(cuGraphLaunch_func real, CUgraphExec hGraphExec,
+	CUstream hStream, CUstream query_stream)
+{
+	CUresult result;
+
+	if (real == NULL) return CUDA_ERROR_NOT_INITIALIZED;
+
+	if (stream_is_capturing(query_stream))
+		return real(hGraphExec, hStream);
+
+	continue_with_lock();
+	result = real(hGraphExec, hStream);
+	cuda_driver_check_error(result, "cuGraphLaunch");
+	count_launch();
+	return result;
+}
+
+CUresult cuGraphLaunch(CUgraphExec hGraphExec, CUstream hStream)
+{
+	return launch_graph(real_cuGraphLaunch, hGraphExec, hStream, hStream);
+}
+
+CUresult cuGraphLaunch_ptsz(CUgraphExec hGraphExec, CUstream hStream)
+{
+	return launch_graph(real_cuGraphLaunch_ptsz, hGraphExec, hStream,
+		hStream ? hStream : CU_STREAM_PER_THREAD);
+}
+
+static void capture_begun(CUresult result)
+{
+	if (result == CUDA_SUCCESS)
+		__atomic_add_fetch(&active_captures, 1, __ATOMIC_RELEASE);
+	true_or_exit(pthread_mutex_unlock(&capture_mutex) == 0);
+}
+
+CUresult cuStreamBeginCapture(CUstream hStream)
+{
+	CUresult result;
+
+	if (real_cuStreamBeginCapture == NULL) return CUDA_ERROR_NOT_INITIALIZED;
+	true_or_exit(pthread_mutex_lock(&capture_mutex) == 0);
+	result = real_cuStreamBeginCapture(hStream);
+	capture_begun(result);
+	return result;
+}
+
+CUresult cuStreamBeginCapture_ptsz(CUstream hStream)
+{
+	CUresult result;
+
+	if (real_cuStreamBeginCapture_ptsz == NULL) return CUDA_ERROR_NOT_INITIALIZED;
+	true_or_exit(pthread_mutex_lock(&capture_mutex) == 0);
+	result = real_cuStreamBeginCapture_ptsz(hStream);
+	capture_begun(result);
+	return result;
+}
+
+CUresult cuStreamBeginCapture_v2(CUstream hStream, CUstreamCaptureMode mode)
+{
+	CUresult result;
+
+	if (real_cuStreamBeginCapture_v2 == NULL) return CUDA_ERROR_NOT_INITIALIZED;
+	true_or_exit(pthread_mutex_lock(&capture_mutex) == 0);
+	result = real_cuStreamBeginCapture_v2(hStream, mode);
+	capture_begun(result);
+	return result;
+}
+
+CUresult cuStreamBeginCapture_v2_ptsz(CUstream hStream, CUstreamCaptureMode mode)
+{
+	CUresult result;
+
+	if (real_cuStreamBeginCapture_v2_ptsz == NULL) return CUDA_ERROR_NOT_INITIALIZED;
+	true_or_exit(pthread_mutex_lock(&capture_mutex) == 0);
+	result = real_cuStreamBeginCapture_v2_ptsz(hStream, mode);
+	capture_begun(result);
+	return result;
+}
+
+CUresult cuStreamBeginCaptureToGraph(CUstream hStream, CUgraph hGraph,
+	const CUgraphNode *dependencies, const CUgraphEdgeData *dependencyData,
+	size_t numDependencies, CUstreamCaptureMode mode)
+{
+	CUresult result;
+
+	if (real_cuStreamBeginCaptureToGraph == NULL) return CUDA_ERROR_NOT_INITIALIZED;
+	true_or_exit(pthread_mutex_lock(&capture_mutex) == 0);
+	result = real_cuStreamBeginCaptureToGraph(hStream, hGraph, dependencies,
+		dependencyData, numDependencies, mode);
+	capture_begun(result);
+	return result;
+}
+
+CUresult cuStreamBeginCaptureToGraph_ptsz(CUstream hStream, CUgraph hGraph,
+	const CUgraphNode *dependencies, const CUgraphEdgeData *dependencyData,
+	size_t numDependencies, CUstreamCaptureMode mode)
+{
+	CUresult result;
+
+	if (real_cuStreamBeginCaptureToGraph_ptsz == NULL) return CUDA_ERROR_NOT_INITIALIZED;
+	true_or_exit(pthread_mutex_lock(&capture_mutex) == 0);
+	result = real_cuStreamBeginCaptureToGraph_ptsz(hStream, hGraph,
+		dependencies, dependencyData, numDependencies, mode);
+	capture_begun(result);
+	return result;
+}
+
+static CUresult end_capture(cuStreamEndCapture_func real, CUstream hStream,
+	CUgraph *phGraph, CUstream query_stream)
+{
+	CUstreamCaptureStatus status = CU_STREAM_CAPTURE_STATUS_ACTIVE;
+	CUresult result;
+
+	if (real == NULL) return CUDA_ERROR_NOT_INITIALIZED;
+	true_or_exit(pthread_mutex_lock(&capture_mutex) == 0);
+	if (real_cuStreamIsCapturing != NULL &&
+	    real_cuStreamIsCapturing(query_stream, &status) != CUDA_SUCCESS)
+		status = CU_STREAM_CAPTURE_STATUS_NONE;
+	result = real(hStream, phGraph);
+	/* Ending a capture takes the stream out of capture mode, even on error */
+	if (status != CU_STREAM_CAPTURE_STATUS_NONE && active_captures > 0) {
+		__atomic_sub_fetch(&active_captures, 1, __ATOMIC_RELEASE);
+		true_or_exit(pthread_cond_broadcast(&capture_cv) == 0);
+	}
+	true_or_exit(pthread_mutex_unlock(&capture_mutex) == 0);
+	return result;
+}
+
+CUresult cuStreamEndCapture(CUstream hStream, CUgraph *phGraph)
+{
+	return end_capture(real_cuStreamEndCapture, hStream, phGraph, hStream);
+}
+
+CUresult cuStreamEndCapture_ptsz(CUstream hStream, CUgraph *phGraph)
+{
+	return end_capture(real_cuStreamEndCapture_ptsz, hStream, phGraph,
+		hStream ? hStream : CU_STREAM_PER_THREAD);
+}
+
+/* Our version of a graph or capture function, by exact symbol name. */
+static void *get_graph_hook(const char *symbol)
+{
+	static const struct { const char *name; void *hook; } hooks[] = {
+		{"cuGraphLaunch", (void *)cuGraphLaunch},
+		{"cuGraphLaunch_ptsz", (void *)cuGraphLaunch_ptsz},
+		{"cuStreamBeginCapture", (void *)cuStreamBeginCapture},
+		{"cuStreamBeginCapture_ptsz", (void *)cuStreamBeginCapture_ptsz},
+		{"cuStreamBeginCapture_v2", (void *)cuStreamBeginCapture_v2},
+		{"cuStreamBeginCapture_v2_ptsz", (void *)cuStreamBeginCapture_v2_ptsz},
+		{"cuStreamBeginCaptureToGraph", (void *)cuStreamBeginCaptureToGraph},
+		{"cuStreamBeginCaptureToGraph_ptsz", (void *)cuStreamBeginCaptureToGraph_ptsz},
+		{"cuStreamEndCapture", (void *)cuStreamEndCapture},
+		{"cuStreamEndCapture_ptsz", (void *)cuStreamEndCapture_ptsz},
+	};
+
+	for (size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); i++)
+		if (strcmp(symbol, hooks[i].name) == 0)
+			return hooks[i].hook;
+	return NULL;
+}
+
+/*
+ * cuGetProcAddress() picks the variant (_v2, _ptsz) from the version and
+ * flags. Map the real function it returned to our wrapper of that variant.
+ */
+static void *hook_for_real(void *fn)
+{
+	const struct { void *real; void *hook; } hooks[] = {
+		{(void *)real_cuGraphLaunch, (void *)cuGraphLaunch},
+		{(void *)real_cuGraphLaunch_ptsz, (void *)cuGraphLaunch_ptsz},
+		{(void *)real_cuStreamBeginCapture, (void *)cuStreamBeginCapture},
+		{(void *)real_cuStreamBeginCapture_ptsz, (void *)cuStreamBeginCapture_ptsz},
+		{(void *)real_cuStreamBeginCapture_v2, (void *)cuStreamBeginCapture_v2},
+		{(void *)real_cuStreamBeginCapture_v2_ptsz, (void *)cuStreamBeginCapture_v2_ptsz},
+		{(void *)real_cuStreamBeginCaptureToGraph, (void *)cuStreamBeginCaptureToGraph},
+		{(void *)real_cuStreamBeginCaptureToGraph_ptsz, (void *)cuStreamBeginCaptureToGraph_ptsz},
+		{(void *)real_cuStreamEndCapture, (void *)cuStreamEndCapture},
+		{(void *)real_cuStreamEndCapture_ptsz, (void *)cuStreamEndCapture_ptsz},
+	};
+
+	for (size_t i = 0; i < sizeof(hooks) / sizeof(hooks[0]); i++)
+		if (fn != NULL && fn == hooks[i].real)
+			return hooks[i].hook;
+	return fn;
 }
 
 

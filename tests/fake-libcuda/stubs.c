@@ -49,7 +49,6 @@ WEAK int cuMemAllocManaged(void) { return 0; }
 WEAK int cuMemFree_v2(void) { return 0; }
 WEAK int cuCtxSetCurrent(void) { return 0; }
 WEAK int cuCtxGetCurrent(void) { return 0; }
-WEAK int cuCtxSynchronize(void) { return 0; }
 WEAK int cuLaunchKernel(void) { return 0; }
 WEAK int cuMemcpy(void) { return 0; }
 WEAK int cuMemcpyAsync(void) { return 0; }
@@ -59,3 +58,44 @@ WEAK int cuMemcpyHtoD_v2(void) { return 0; }
 WEAK int cuMemcpyHtoDAsync_v2(void) { return 0; }
 WEAK int cuMemcpyDtoD_v2(void) { return 0; }
 WEAK int cuMemcpyDtoDAsync_v2(void) { return 0; }
+
+/* One capture at a time. Like the real driver, a sync during it fails (900)
+ * and invalidates it.
+ */
+static void *capture_stream;
+static int capture_invalidated;
+
+WEAK int cuStreamBeginCapture_v2(void *stream, int mode)
+{
+	(void)mode;
+	capture_stream = stream;
+	capture_invalidated = 0;
+	return 0;
+}
+
+WEAK int cuStreamEndCapture(void *stream, void **graph)
+{
+	if (stream == NULL || stream != capture_stream)
+		return 401; /* CUDA_ERROR_ILLEGAL_STATE */
+	capture_stream = NULL;
+	*graph = (void *)0x1;
+	return capture_invalidated ? 901 : 0; /* CUDA_ERROR_STREAM_CAPTURE_INVALIDATED */
+}
+
+WEAK int cuStreamIsCapturing(void *stream, int *status)
+{
+	*status = (stream != NULL && stream == capture_stream) ?
+		  (capture_invalidated ? 2 : 1) : 0;
+	return 0;
+}
+
+WEAK int cuCtxSynchronize(void)
+{
+	if (capture_stream != NULL) {
+		capture_invalidated = 1;
+		return 900; /* CUDA_ERROR_STREAM_CAPTURE_UNSUPPORTED */
+	}
+	return 0;
+}
+
+WEAK int cuGraphLaunch(void *exec, void *stream) { (void)exec; (void)stream; return 0; }
