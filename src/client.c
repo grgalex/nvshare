@@ -311,7 +311,7 @@ void *client_fn(void *arg __attribute__((unused)))
 				 */
 				true_or_exit(pthread_mutex_unlock(&global_mutex) == 0);
 				true_or_exit(pthread_mutex_lock(&capture_mutex) == 0);
-				while (active_captures > 0)
+				while (active_captures > 0 && own_lock == 1)
 					true_or_exit(pthread_cond_wait(&capture_cv, &capture_mutex) == 0);
 				true_or_exit(pthread_mutex_lock(&global_mutex) == 0);
 				if (own_lock == 1) {
@@ -361,18 +361,63 @@ void *client_fn(void *arg __attribute__((unused)))
 }
 
 
+/*
+ * Return 1 if the GPU looks idle, after the client has submitted no work for
+ * a whole interval. It may still be busy with work submitted earlier.
+ */
+static int gpu_is_idle(nvmlDevice_t *nvml_dev)
+{
+	struct timespec cuda_sync_start_time = {0, 0};
+	struct timespec cuda_sync_complete_time = {0, 0};
+	struct timespec cuda_sync_duration = {0, 0};
+	unsigned int elapsed_ms;
+	nvmlReturn_t nvml_ret;
+	nvmlUtilization_t nvml_util;
+
+	if (nvml_ok) {
+		nvml_ret = real_nvmlDeviceGetUtilizationRates(*nvml_dev, &nvml_util);
+		if (nvml_ret != NVML_SUCCESS) {
+			/*
+			 * Don't consider NVML failing a fatal thing. We found
+			 * its symbols though, so this indicates a deeper error.
+			 */
+			log_warn("nvmlDeviceGetUtilizationRates failed with %d",
+				 (int)nvml_ret);
+			nvml_ok = 0; /* Stop using NVML */
+			return 0;
+		}
+		log_debug("GPU Utilization = %u %%", nvml_util.gpu);
+		if (nvml_util.gpu > 0) {
+			log_debug("Early release timer elapsed but we are not idle");
+			return 0;
+		}
+		return 1;
+	}
+
+	/*
+	 * Fallback without NVML: consider a cuCtxSynchronize() that takes more
+	 * than 100 ms (empirical threshold) as the GPU having been busy.
+	 */
+	true_or_exit(clock_gettime(CLOCK_MONOTONIC, &cuda_sync_start_time) == 0);
+	cuda_sync_context();
+	true_or_exit(clock_gettime(CLOCK_MONOTONIC, &cuda_sync_complete_time) == 0);
+	timespecsub(&cuda_sync_complete_time, &cuda_sync_start_time, &cuda_sync_duration);
+	elapsed_ms = ((unsigned int)cuda_sync_duration.tv_sec * 1000)
+		     + (cuda_sync_duration.tv_nsec / 1000000);
+	if (elapsed_ms >= 100) {
+		log_debug("Early release timer elapsed but we are not idle");
+		return 0;
+	}
+	return 1;
+}
+
 void *release_early_fn(void *arg __attribute__((unused)))
 {
 	struct message release_msg = {0};
 	struct timespec timer_end_ts = {0, 0};
-	struct timespec cuda_sync_start_time = {0, 0};
-	struct timespec cuda_sync_complete_time = {0, 0};
-	struct timespec cuda_sync_duration = {0, 0};
 	int ret;
-	unsigned int elapsed_ms;
 	nvmlReturn_t nvml_ret;
 	nvmlDevice_t nvml_dev;
-	nvmlUtilization_t nvml_util;
 
 	release_msg.type = LOCK_RELEASED;
 	release_msg.id = nvshare_client_id;
@@ -415,83 +460,24 @@ wait_remainder:
 				did_work = 0;
 				continue;
 			}
-			/* Launches into a capture don't count as work: never idle then */
-			if (__atomic_load_n(&active_captures, __ATOMIC_ACQUIRE) > 0)
-				continue;
 			/*
-			 * At this point, the client has not submitted any new
-			 * work to the GPU within the last interval.
-			 *
-			 * However, it could be the case that the client has
-			 * already submitted enough work on the GPU to keep it
-			 * busy and doesn't need to submit more for now.
-			 *
-			 * Since "doing work" means keeping the GPU busy, we
-			 * use NVML to get the GPU utilization rate and
-			 * deduce whether the client is actually idle or not.
+			 * Keep capture_mutex until we've released the lock, so
+			 * that no capture starts in between. Only trylock it: we
+			 * hold global_mutex.
 			 */
-			if (nvml_ok) {
-				nvml_ret = real_nvmlDeviceGetUtilizationRates(nvml_dev, &nvml_util);
-				if (nvml_ret != NVML_SUCCESS) {
-					/*
-					 * Don't consider NVML failing a fatal
-					 * thing.
-					 *
-					 * However, this is a bad thing
-					 * to happen, because if we've
-					 * reached this point then we've found
-					 * the NVML symbols, which indicates a
-					 * deeper error.
-					 */
-					log_warn("nvmlInit failed with %d", (int)nvml_ret);
-					nvml_ok = 0; /* Stop using NVML */
-					continue;
-				} else {
-					log_debug("GPU Utilization = %u %%", nvml_util.gpu);
-					if (nvml_util.gpu > 0) {
-						log_debug("Early release timer elapsed but we are not idle");
-						continue;
-					}
-				}
-			} else { /* FALLBACK method in case NVML fails */
-				/*
-				 * The idea is the following:
-				 *
-				 * Check if cuCtxSynchronize() takes more than
-				 * 100 ms.
-				 *
-				 * This is an empirical threshold above
-				 * which we consider that we've been doing work
-				 * on the GPU for the past interval instead of
-				 * being idle.
-				 */
-				/* Not idle if a graph capture is open */
-				if (pthread_mutex_trylock(&capture_mutex) != 0)
-					continue;
-				if (active_captures > 0) {
-					true_or_exit(pthread_mutex_unlock(&capture_mutex) == 0);
-					continue;
-				}
-				true_or_exit(clock_gettime(CLOCK_MONOTONIC,
-					&cuda_sync_start_time) == 0);
-				cuda_sync_context();
-				true_or_exit(clock_gettime(CLOCK_MONOTONIC,
-					&cuda_sync_complete_time) == 0);
+			if (pthread_mutex_trylock(&capture_mutex) != 0)
+				continue;
+			/* Launches into a capture don't count as work: never idle then */
+			if (active_captures > 0 || !gpu_is_idle(&nvml_dev)) {
 				true_or_exit(pthread_mutex_unlock(&capture_mutex) == 0);
-				timespecsub(&cuda_sync_complete_time, &cuda_sync_start_time, &cuda_sync_duration);
-
-				elapsed_ms = ((unsigned int)cuda_sync_duration.tv_sec * 1000)
-					     + (cuda_sync_duration.tv_nsec / 1000000);
-				if (elapsed_ms >= 100) {
-					log_debug("Early release timer elapsed but we are not idle");
-					continue;
-				}
+				continue;
 			}
-
-			/* IDLE */
 			log_debug("Releasing the lock early due to inactivity");
 			true_or_exit(write_whole(rsock, &release_msg, sizeof(release_msg)) == sizeof(release_msg));
 			own_lock = 0;
+			/* A DROP_LOCK waiting for a capture to end has nothing left to do */
+			true_or_exit(pthread_cond_broadcast(&capture_cv) == 0);
+			true_or_exit(pthread_mutex_unlock(&capture_mutex) == 0);
 			log_debug("Sent %s", message_type_string[release_msg.type]);
 		} else if (ret != 0) { /* BAD */
 			errno = ret;
